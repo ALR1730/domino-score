@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/leaderboard_service.dart';
 import 'round.dart';
 
 class GameState extends ChangeNotifier {

@@ -44,7 +44,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
           content: Text(ok
               ? '✅ Rankings sincronizados con el servidor correctamente.'
               : '⚠️ No se pudo conectar al servidor Render.'),
-          backgroundColor: ok ? AppColors.emerald600 : AppColors.amber700,
+          backgroundColor: ok ? AppColors.emerald600 : AppColors.amber600,
         ),
       );
     }
