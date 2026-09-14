@@ -42,8 +42,10 @@ Cada vez que se sube un cambio a la rama `main`, GitHub Actions genera automáti
 - **Ranking General del Servidor**: Estadísticas agregadas de todas las ligas registradas en el servidor REST.
 
 ### 3. Backend REST & Sincronización en la Nube
-- Sincronización automática de ligas, partidas y rankings con el backend REST en Node.js.
-- **100% Resiliente Offline**: Funciona completamente sin conexión guardando el estado en el dispositivo localmente (`SharedPreferences`).
+- **Servidor en la Nube por Defecto**: `https://domino-score-backend.onrender.com`
+- Sincronización automática de ligas, partidas y rankings con el backend REST en tiempo real entre múltiples dispositivos (PC, móvil y tablet).
+- **100% Resiliente Offline**: Si no hay conexión o el servidor está en reposo, funciona con almacenamiento local (`SharedPreferences`).
+- **Configurable**: Puedes verificar o cambiar la URL del servidor desde la app tocando el ícono de nube (☁️).
 
 ---
 

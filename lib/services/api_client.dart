@@ -13,17 +13,20 @@ class ApiClient {
     loadSavedBaseUrl();
   }
 
-  static const String _prefKeyBaseUrl = 'domino_api_base_url_v1';
+  static const String defaultBaseUrl = 'https://domino-score-backend.onrender.com';
+  static const String _prefKeyBaseUrl = 'domino_api_base_url_v2';
 
-  // URL configurable para backend local o en la nube (ej: Render, Railway o VPS)
-  String baseUrl = 'http://127.0.0.1:3000';
+  // URL configurable para backend en la nube o local
+  String baseUrl = defaultBaseUrl;
 
   Future<void> loadSavedBaseUrl() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString(_prefKeyBaseUrl);
-      if (saved != null && saved.trim().isNotEmpty) {
+      if (saved != null && saved.trim().isNotEmpty && !saved.contains('127.0.0.1') && !saved.contains('localhost')) {
         baseUrl = saved.trim();
+      } else {
+        baseUrl = defaultBaseUrl;
       }
     } catch (_) {}
   }
@@ -43,7 +46,7 @@ class ApiClient {
     try {
       final res = await http
           .get(Uri.parse('$baseUrl/health'))
-          .timeout(const Duration(seconds: 2));
+          .timeout(const Duration(seconds: 8));
       return res.statusCode == 200;
     } catch (_) {
       return false;
@@ -64,7 +67,7 @@ class ApiClient {
           'pin': pin,
           'initialParticipants': initialParticipants,
         }),
-      );
+      ).timeout(const Duration(seconds: 10));
       if (res.statusCode == 201) {
         final data = jsonDecode(res.body);
         return League.fromMap(data['league']);
@@ -84,7 +87,7 @@ class ApiClient {
         Uri.parse('$baseUrl/api/leagues/join'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'nameOrId': nameOrId, 'pin': pin}),
-      ).timeout(const Duration(seconds: 3));
+      ).timeout(const Duration(seconds: 10));
       final data = jsonDecode(res.body);
       if (res.statusCode == 200 && data['success'] == true) {
         return {'success': true, 'league': League.fromMap(data['league'])};
@@ -98,7 +101,7 @@ class ApiClient {
 
   Future<League?> fetchLeague(String id) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/leagues/$id'));
+      final res = await http.get(Uri.parse('$baseUrl/api/leagues/$id')).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         return League.fromMap(data['league']);
@@ -118,7 +121,7 @@ class ApiClient {
         Uri.parse('$baseUrl/api/leagues/$leagueId/matches'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(match.toMap()),
-      );
+      ).timeout(const Duration(seconds: 10));
       return res.statusCode == 201;
     } catch (e) {
       debugPrint('ApiClient.recordMatch error: $e');
@@ -128,7 +131,7 @@ class ApiClient {
 
   Future<List<TeamStats>?> fetchGlobalTeams() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/rankings/global/teams'));
+      final res = await http.get(Uri.parse('$baseUrl/api/rankings/global/teams')).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['teams'] as List<dynamic>;
@@ -142,7 +145,7 @@ class ApiClient {
 
   Future<List<PlayerStats>?> fetchGlobalPlayers() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/rankings/global/players'));
+      final res = await http.get(Uri.parse('$baseUrl/api/rankings/global/players')).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['players'] as List<dynamic>;
