@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: domino-score-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: PORT
+        value: 3000

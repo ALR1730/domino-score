@@ -15,6 +15,7 @@ class AppColors {
   static const Color white = Colors.white;
 
   // Team 1 (Emerald)
+  static const Color emerald300 = Color(0xFF6EE7B7);
   static const Color emerald400 = Color(0xFF34D399);
   static const Color emerald500 = Color(0xFF10B981);
   static const Color emerald600 = Color(0xFF059669);

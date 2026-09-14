@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/league.dart';
+import '../../services/api_client.dart';
 import '../../services/league_service.dart';
 import '../../theme/app_colors.dart';
 import 'match_setup_screen.dart';
@@ -26,6 +27,151 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _showServerSettingsDialog() {
+    final client = ApiClient();
+    final urlController = TextEditingController(text: client.baseUrl);
+    bool isTesting = false;
+    String? statusMessage;
+    bool? isOnline;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Dialog(
+          backgroundColor: AppColors.slate900,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppColors.slate800),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.cloud_sync, color: AppColors.emerald400),
+                      SizedBox(width: 8),
+                      Text(
+                        'Servidor en la Nube',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.white),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Configura la URL de tu backend para sincronizar ligas y partidas en tiempo real entre tu PC, teléfono móvil y amigos.',
+                    style: TextStyle(color: AppColors.slate400, fontSize: 12),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: urlController,
+                    style: const TextStyle(color: AppColors.white, fontSize: 13),
+                    decoration: const InputDecoration(
+                      labelText: 'URL del Servidor REST',
+                      hintText: 'https://mi-backend.onrender.com',
+                    ),
+                  ),
+                  if (statusMessage != null) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: (isOnline == true ? AppColors.emerald500 : Colors.red).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isOnline == true ? AppColors.emerald500 : Colors.red,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isOnline == true ? Icons.check_circle : Icons.error_outline,
+                            color: isOnline == true ? AppColors.emerald400 : Colors.redAccent,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              statusMessage!,
+                              style: TextStyle(
+                                color: isOnline == true ? AppColors.emerald300 : Colors.redAccent,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: isTesting
+                              ? null
+                              : () async {
+                                  setModalState(() {
+                                    isTesting = true;
+                                    statusMessage = 'Probando conexión...';
+                                    isOnline = null;
+                                  });
+                                  final tempUrl = urlController.text.trim();
+                                  client.baseUrl = tempUrl;
+                                  final available = await client.isServerAvailable();
+                                  setModalState(() {
+                                    isTesting = false;
+                                    isOnline = available;
+                                    statusMessage = available
+                                        ? '¡Conectado exitosamente al servidor!'
+                                        : 'No se pudo conectar a $tempUrl';
+                                  });
+                                },
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.slate700),
+                          ),
+                          child: Text(
+                            isTesting ? 'Probando...' : 'Probar',
+                            style: const TextStyle(color: AppColors.slate300, fontSize: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final newUrl = urlController.text.trim();
+                            if (newUrl.isNotEmpty) {
+                              await client.updateBaseUrl(newUrl);
+                              if (ctx.mounted) Navigator.of(ctx).pop();
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('URL del servidor guardada exitosamente'),
+                                    backgroundColor: AppColors.emerald600,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.emerald600),
+                          child: const Text('Guardar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showCreateLeagueDialog() {
@@ -314,6 +460,11 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.white),
             ),
             actions: [
+              IconButton(
+                tooltip: 'Servidor en la Nube',
+                icon: const Icon(Icons.cloud_outlined, color: AppColors.emerald400, size: 20),
+                onPressed: _showServerSettingsDialog,
+              ),
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert, color: AppColors.slate300),
                 color: AppColors.slate900,

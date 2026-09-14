@@ -4,13 +4,40 @@ import 'package:http/http.dart' as http;
 import '../models/leaderboard_entry.dart';
 import '../models/league.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
   factory ApiClient() => _instance;
-  ApiClient._internal();
+  ApiClient._internal() {
+    loadSavedBaseUrl();
+  }
+
+  static const String _prefKeyBaseUrl = 'domino_api_base_url_v1';
 
   // URL configurable para backend local o en la nube (ej: Render, Railway o VPS)
   String baseUrl = 'http://127.0.0.1:3000';
+
+  Future<void> loadSavedBaseUrl() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_prefKeyBaseUrl);
+      if (saved != null && saved.trim().isNotEmpty) {
+        baseUrl = saved.trim();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> updateBaseUrl(String newUrl) async {
+    baseUrl = newUrl.trim();
+    if (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.substring(0, baseUrl.length - 1);
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefKeyBaseUrl, baseUrl);
+    } catch (_) {}
+  }
 
   Future<bool> isServerAvailable() async {
     try {
