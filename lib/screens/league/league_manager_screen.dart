@@ -380,100 +380,119 @@ class _LeagueManagerScreenState extends State<LeagueManagerScreen>
     final nameController = TextEditingController();
     final pinController = TextEditingController(text: '1234');
     final participantsController = TextEditingController();
+    bool isSubmitting = false;
 
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: AppColors.slate900,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppColors.slate800),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.add_circle_outline, color: AppColors.emerald400),
-                    SizedBox(width: 8),
-                    Text(
-                      'Crear Nueva Liga',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.white),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: nameController,
-                  style: const TextStyle(color: AppColors.white, fontSize: 13),
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre de la Liga',
-                    hintText: 'Ej. Liga de los Campeones',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: pinController,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(color: AppColors.white, fontSize: 13),
-                  decoration: const InputDecoration(
-                    labelText: 'Clave de Acceso (PIN)',
-                    hintText: 'Para que otros se unan desde sus teléfonos',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: participantsController,
-                  maxLines: 2,
-                  style: const TextStyle(color: AppColors.white, fontSize: 13),
-                  decoration: const InputDecoration(
-                    labelText: 'Participantes (separados por coma)',
-                    hintText: 'Carlos, Juan, Pedro, Luis',
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        child: const Text('Cancelar', style: TextStyle(color: AppColors.slate400)),
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Dialog(
+          backgroundColor: AppColors.slate900,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppColors.slate800),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.add_circle_outline, color: AppColors.emerald400),
+                      SizedBox(width: 8),
+                      Text(
+                        'Crear Nueva Liga',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.white),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: nameController,
+                    enabled: !isSubmitting,
+                    style: const TextStyle(color: AppColors.white, fontSize: 13),
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre de la Liga',
+                      hintText: 'Ej. Liga de los Campeones',
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          final name = nameController.text.trim();
-                          final pin = pinController.text.trim();
-                          final parts = participantsController.text
-                              .split(',')
-                              .map((p) => p.trim())
-                              .where((p) => p.isNotEmpty)
-                              .toList();
-
-                          if (name.isEmpty) return;
-
-                          await _leagueService.createLeague(
-                            name: name,
-                            pin: pin.isNotEmpty ? pin : '1234',
-                            initialParticipants: parts,
-                          );
-
-                          if (ctx.mounted) Navigator.of(ctx).pop();
-                          _loadServerLeagues(); // Refrescar lista del servidor
-                        },
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.emerald600),
-                        child: const Text('Crear Liga', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: pinController,
+                    enabled: !isSubmitting,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: AppColors.white, fontSize: 13),
+                    decoration: const InputDecoration(
+                      labelText: 'Clave de Acceso (PIN)',
+                      hintText: 'Para que otros se unan desde sus teléfonos',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: participantsController,
+                    enabled: !isSubmitting,
+                    maxLines: 2,
+                    style: const TextStyle(color: AppColors.white, fontSize: 13),
+                    decoration: const InputDecoration(
+                      labelText: 'Participantes (separados por coma)',
+                      hintText: 'Carlos, Juan, Pedro, Luis',
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
+                          child: const Text('Cancelar', style: TextStyle(color: AppColors.slate400)),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: isSubmitting
+                              ? null
+                              : () async {
+                                  final name = nameController.text.trim();
+                                  final pin = pinController.text.trim();
+                                  final parts = participantsController.text
+                                      .split(',')
+                                      .map((p) => p.trim())
+                                      .where((p) => p.isNotEmpty)
+                                      .toList();
+
+                                  if (name.isEmpty) return;
+
+                                  setModalState(() => isSubmitting = true);
+
+                                  try {
+                                    await _leagueService.createLeague(
+                                      name: name,
+                                      pin: pin.isNotEmpty ? pin : '1234',
+                                      initialParticipants: parts,
+                                    );
+                                  } finally {
+                                    if (ctx.mounted) Navigator.of(ctx).pop();
+                                    _loadServerLeagues();
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.emerald600),
+                          child: isSubmitting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Text('Crear Liga', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),

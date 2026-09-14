@@ -44,7 +44,7 @@ class LeagueService extends ChangeNotifier {
     final randomDigits = (1000 + Random().nextInt(9000)).toString();
     final id = 'LIG-$randomDigits';
 
-    final league = League(
+    var league = League(
       id: id,
       name: cleanName.isNotEmpty ? cleanName : 'Liga $randomDigits',
       pin: cleanPin.isNotEmpty ? cleanPin : '1234',
@@ -58,26 +58,31 @@ class LeagueService extends ChangeNotifier {
       league.players.putIfAbsent(key, () => PlayerStats(key: key, name: p));
     }
 
+    // Intentar registrar en el servidor REST primero con timeout corto (4s)
+    try {
+      final serverLeague = await ApiClient().createLeague(
+        id: league.id,
+        name: league.name,
+        pin: league.pin,
+        initialParticipants: initialParticipants,
+      ).timeout(const Duration(seconds: 4));
+
+      if (serverLeague != null) {
+        league = serverLeague;
+      }
+    } catch (_) {}
+
+    // Eliminar cualquier duplicado accidental previo con el mismo nombre y PIN sin partidas
+    _leagues.removeWhere((key, existing) =>
+        existing.id != league.id &&
+        existing.name.trim().toLowerCase() == league.name.trim().toLowerCase() &&
+        existing.pin.trim() == league.pin.trim() &&
+        existing.matches.isEmpty);
+
     _leagues[league.id] = league;
     _activeLeagueId = league.id;
     await _saveData();
     notifyListeners();
-
-    // Sincronizar en segundo plano con el servidor REST si está disponible
-    ApiClient().createLeague(
-      id: league.id,
-      name: league.name,
-      pin: league.pin,
-      initialParticipants: initialParticipants,
-    ).then((serverLeague) {
-      if (serverLeague != null && serverLeague.id != league.id) {
-        _leagues.remove(league.id);
-        _leagues[serverLeague.id] = serverLeague;
-        _activeLeagueId = serverLeague.id;
-        _saveData();
-        notifyListeners();
-      }
-    }).catchError((_) {});
 
     return league;
   }
@@ -290,6 +295,31 @@ class LeagueService extends ChangeNotifier {
         for (final item in decoded) {
           final l = League.fromMap(item as Map<String, dynamic>);
           _leagues[l.id] = l;
+        }
+
+        // Limpieza automática de ligas duplicadas accidentales (mismo nombre y PIN con 0 partidas)
+        final seen = <String, String>{};
+        final toRemove = <String>[];
+        for (final l in _leagues.values) {
+          if (l.matches.isNotEmpty) continue;
+          final key = '${l.name.trim().toLowerCase()}__${l.pin.trim()}';
+          if (seen.containsKey(key)) {
+            final prevId = seen[key]!;
+            if (l.id == _activeLeagueId) {
+              toRemove.add(prevId);
+              seen[key] = l.id;
+            } else {
+              toRemove.add(l.id);
+            }
+          } else {
+            seen[key] = l.id;
+          }
+        }
+        for (final id in toRemove) {
+          _leagues.remove(id);
+        }
+        if (toRemove.isNotEmpty) {
+          await _saveData();
         }
       }
 
