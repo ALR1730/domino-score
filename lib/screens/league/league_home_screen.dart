@@ -19,6 +19,9 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
   late TabController _tabController;
   bool _isSyncing = false;
   Timer? _autoSyncTimer;
+  bool _isServerOnline = true;
+  List<Map<String, dynamic>> _cloudLeagues = [];
+  bool _isLoadingCloud = false;
 
   @override
   void initState() {
@@ -26,6 +29,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
     _tabController = TabController(length: 3, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _service.syncActiveLeagueWithServer();
+      _checkServerStatus();
     });
     // Auto-sincronización periódica cada 10s para reflejar partidas de otros dispositivos
     _autoSyncTimer = Timer.periodic(const Duration(seconds: 10), (_) {
@@ -33,6 +37,25 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
         _service.syncActiveLeagueWithServer();
       }
     });
+  }
+
+  Future<void> _checkServerStatus() async {
+    final available = await _service.activeLeague != null
+        ? await _service.syncActiveLeagueWithServer()
+        : await _service.allLeagues.isNotEmpty;
+    if (mounted) setState(() => _isServerOnline = true);
+
+    if (_service.activeLeague == null) {
+      setState(() => _isLoadingCloud = true);
+      try {
+        final list = await _service.allLeagues.isEmpty
+            ? await _service.syncAllLeaguesWithServer().then((_) => _service.allLeagues)
+            : _service.allLeagues;
+      } catch (_) {}
+      if (mounted) {
+        setState(() => _isLoadingCloud = false);
+      }
+    }
   }
 
   Future<void> _handleSync() async {
@@ -46,11 +69,14 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
     );
     final ok = await _service.syncActiveLeagueWithServer();
     if (mounted) {
-      setState(() => _isSyncing = false);
+      setState(() {
+        _isSyncing = false;
+        _isServerOnline = ok;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(ok
-              ? '✅ Rankings sincronizados con el servidor correctamente.'
+              ? '✅ Conectado y sincronizado con el servidor correctamente.'
               : '⚠️ No se pudo conectar al servidor Render.'),
           backgroundColor: ok ? AppColors.emerald600 : AppColors.amber600,
         ),
@@ -480,9 +506,52 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
               icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: AppColors.slate300),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            title: Text(
-              active != null ? active.name : 'Modo Liga',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.white),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    active != null ? active.name : 'Modo Liga',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.white),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _isServerOnline
+                        ? AppColors.emerald500.withValues(alpha: 0.15)
+                        : AppColors.amber500.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _isServerOnline
+                          ? AppColors.emerald500.withValues(alpha: 0.4)
+                          : AppColors.amber500.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: _isServerOnline ? AppColors.emerald400 : AppColors.amber400,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _isServerOnline ? 'Servidor OK' : 'Conectando...',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: _isServerOnline ? AppColors.emerald300 : AppColors.amber300,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             actions: [
               if (active != null)

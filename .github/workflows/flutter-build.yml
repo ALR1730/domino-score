@@ -58,6 +58,7 @@ jobs:
   build-web:
     name: Compilar Versión Web & Desplegar
     runs-on: ubuntu-latest
+    needs: build-android
 
     steps:
       - name: Checkout repository
@@ -75,6 +76,12 @@ jobs:
       - name: Compilar Flutter Web
         run: flutter build web --release --base-href "/domino-score/"
 
+      - name: Descargar APK para incluir en la Web
+        uses: actions/download-artifact@v4
+        with:
+          name: domino-score-android-apk
+          path: build/web/
+
       - name: Subir Artefacto Web
         uses: actions/upload-artifact@v4
         with:
@@ -91,3 +98,19 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./build/web
           force_orphan: true
+
+      - name: Publicar Release en GitHub con APK
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        continue-on-error: true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: "Dominó Score v1.0 (APK y Web)"
+          body: |
+            ### 🎲 Dominó Score - Descarga de APK Android
+            - **Descarga directa:** Haz clic en `app-release.apk` abajo para descargar e instalar en tu teléfono.
+            - **Servidor Cloud:** Conectado a Render (`https://domino-score-backend.onrender.com`).
+            - **Versión Web:** [https://alr1730.github.io/domino-score/](https://alr1730.github.io/domino-score/)
+          files: build/web/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

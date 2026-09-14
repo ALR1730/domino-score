@@ -16,19 +16,25 @@ class ApiClient {
   static const String defaultBaseUrl = 'https://domino-score-backend.onrender.com';
   static const String _prefKeyBaseUrl = 'domino_api_base_url_v2';
 
-  // URL configurable para backend en la nube o local
+  // URL fija para backend en la nube
   String baseUrl = defaultBaseUrl;
 
   Future<void> loadSavedBaseUrl() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString(_prefKeyBaseUrl);
-      if (saved != null && saved.trim().isNotEmpty && !saved.contains('127.0.0.1') && !saved.contains('localhost')) {
+      if (saved != null &&
+          saved.trim().isNotEmpty &&
+          saved.startsWith('https://') &&
+          !saved.contains('127.0.0.1') &&
+          !saved.contains('localhost')) {
         baseUrl = saved.trim();
       } else {
         baseUrl = defaultBaseUrl;
       }
-    } catch (_) {}
+    } catch (_) {
+      baseUrl = defaultBaseUrl;
+    }
   }
 
   Future<void> updateBaseUrl(String newUrl) async {
