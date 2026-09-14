@@ -65,14 +65,17 @@ class LeagueService extends ChangeNotifier {
 
     // Sincronizar en segundo plano con el servidor REST si está disponible
     ApiClient().createLeague(
+      id: league.id,
       name: league.name,
       pin: league.pin,
       initialParticipants: initialParticipants,
     ).then((serverLeague) {
       if (serverLeague != null && serverLeague.id != league.id) {
-        // En caso de que el backend haya asignado su propio ID
+        _leagues.remove(league.id);
         _leagues[serverLeague.id] = serverLeague;
+        _activeLeagueId = serverLeague.id;
         _saveData();
+        notifyListeners();
       }
     }).catchError((_) {});
 
@@ -172,8 +175,40 @@ class LeagueService extends ChangeNotifier {
     await _saveData();
     notifyListeners();
 
-    // Sincronizar en segundo plano con el servidor REST
-    ApiClient().recordMatch(leagueId: league.id, match: match).catchError((_) => false);
+    // Sincronizar inmediatamente con el servidor REST
+    _syncLeagueWithServer(league, match);
+  }
+
+  Future<bool> _syncLeagueWithServer(League league, [LeagueMatch? newMatch]) async {
+    try {
+      if (newMatch != null) {
+        final ok = await ApiClient().recordMatch(
+          leagueId: league.id,
+          match: newMatch,
+          leagueName: league.name,
+          pin: league.pin,
+        );
+        if (ok) return true;
+      }
+      return await ApiClient().syncLeague(league);
+    } catch (e) {
+      debugPrint('Error syncing league to server: $e');
+      return false;
+    }
+  }
+
+  Future<bool> syncActiveLeagueWithServer() async {
+    final league = activeLeague;
+    if (league == null) return false;
+    final ok = await _syncLeagueWithServer(league);
+    if (ok) notifyListeners();
+    return ok;
+  }
+
+  Future<void> syncAllLeaguesWithServer() async {
+    for (final league in _leagues.values) {
+      await ApiClient().syncLeague(league);
+    }
   }
 
   // --- Rankings Globales (Agregado de todas las ligas del servidor) ---

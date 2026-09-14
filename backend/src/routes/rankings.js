@@ -36,4 +36,24 @@ router.get("/league/:id", (req, res) => {
   res.json({ success: true, leagueName: league.name, teams, players });
 });
 
+// POST /api/rankings/record-match - Registrar partida casual en ranking global
+router.post("/record-match", (req, res) => {
+  const { rawTeam1, rawTeam2, score1, score2, winnerTeam } = req.body;
+  if (!rawTeam1 || !rawTeam2) {
+    return res.status(400).json({ success: false, error: "Nombres de equipos requeridos." });
+  }
+
+  const match = store.recordCasualMatch({
+    team1DisplayName: rawTeam1,
+    team2DisplayName: rawTeam2,
+    team1Members: [rawTeam1],
+    team2Members: [rawTeam2],
+    score1: Number(score1) || 0,
+    score2: Number(score2) || 0,
+    winnerTeam: Number(winnerTeam) || 1,
+  });
+
+  res.status(201).json({ success: true, match });
+});
+
 module.exports = router;

@@ -10,18 +10,34 @@ router.get("/", (req, res) => {
 
 // POST /api/leagues - Crear nueva liga
 router.post("/", (req, res) => {
-  const { name, pin, initialParticipants } = req.body;
+  const { id, name, pin, initialParticipants } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ success: false, error: "El nombre de la liga es obligatorio." });
   }
 
   const league = store.createLeague({
+    id,
     name,
     pin: pin || "1234",
     initialParticipants: initialParticipants || [],
   });
 
   res.status(201).json({ success: true, league });
+});
+
+// POST /api/leagues/sync - Sincronizar liga completa y todas sus partidas
+router.post("/sync", (req, res) => {
+  const leagueData = req.body;
+  if (!leagueData || !leagueData.id) {
+    return res.status(400).json({ success: false, error: "Datos de liga requeridos (incluyendo id)." });
+  }
+
+  const league = store.syncLeague(leagueData);
+  if (!league) {
+    return res.status(500).json({ success: false, error: "No se pudo sincronizar la liga." });
+  }
+
+  res.json({ success: true, league });
 });
 
 // POST /api/leagues/join - Validar PIN y unirse a liga desde otro dispositivo
@@ -102,13 +118,15 @@ router.delete("/:id/participants/:name", (req, res) => {
 
 // POST /api/leagues/:id/matches - Registrar partida oficial
 router.post("/:id/matches", (req, res) => {
-  const { team1DisplayName, team2DisplayName, team1Members, team2Members, score1, score2, winnerTeam } = req.body;
+  const { id: matchId, date, team1DisplayName, team2DisplayName, team1Members, team2Members, score1, score2, winnerTeam, leagueName, pin } = req.body;
 
   if (!team1Members || !team2Members || team1Members.length === 0 || team2Members.length === 0) {
     return res.status(400).json({ success: false, error: "Se requieren los miembros de ambos equipos." });
   }
 
   const match = store.recordMatch(req.params.id, {
+    id: matchId,
+    date,
     team1DisplayName,
     team2DisplayName,
     team1Members,
@@ -116,6 +134,8 @@ router.post("/:id/matches", (req, res) => {
     score1: Number(score1) || 0,
     score2: Number(score2) || 0,
     winnerTeam: Number(winnerTeam) || 1,
+    leagueName,
+    pin,
   });
 
   if (!match) {

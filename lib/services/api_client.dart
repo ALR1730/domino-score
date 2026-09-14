@@ -54,6 +54,7 @@ class ApiClient {
   }
 
   Future<League?> createLeague({
+    String? id,
     required String name,
     required String pin,
     required List<String> initialParticipants,
@@ -63,6 +64,7 @@ class ApiClient {
         Uri.parse('$baseUrl/api/leagues'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
+          if (id != null) 'id': id,
           'name': name,
           'pin': pin,
           'initialParticipants': initialParticipants,
@@ -76,6 +78,46 @@ class ApiClient {
       debugPrint('ApiClient.createLeague error: $e');
     }
     return null;
+  }
+
+  Future<bool> syncLeague(League league) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/leagues/sync'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(league.toMap()),
+      ).timeout(const Duration(seconds: 12));
+      return res.statusCode == 200 || res.statusCode == 201;
+    } catch (e) {
+      debugPrint('ApiClient.syncLeague error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> recordCasualMatch({
+    required String rawTeam1,
+    required String rawTeam2,
+    required int score1,
+    required int score2,
+    required int winnerTeam,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/rankings/record-match'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'rawTeam1': rawTeam1,
+          'rawTeam2': rawTeam2,
+          'score1': score1,
+          'score2': score2,
+          'winnerTeam': winnerTeam,
+        }),
+      ).timeout(const Duration(seconds: 10));
+      return res.statusCode == 201;
+    } catch (e) {
+      debugPrint('ApiClient.recordCasualMatch error: $e');
+      return false;
+    }
   }
 
   Future<Map<String, dynamic>> joinLeague({
@@ -115,12 +157,18 @@ class ApiClient {
   Future<bool> recordMatch({
     required String leagueId,
     required LeagueMatch match,
+    String? leagueName,
+    String? pin,
   }) async {
     try {
+      final payload = match.toMap();
+      if (leagueName != null) payload['leagueName'] = leagueName;
+      if (pin != null) payload['pin'] = pin;
+
       final res = await http.post(
         Uri.parse('$baseUrl/api/leagues/$leagueId/matches'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(match.toMap()),
+        body: jsonEncode(payload),
       ).timeout(const Duration(seconds: 10));
       return res.statusCode == 201;
     } catch (e) {

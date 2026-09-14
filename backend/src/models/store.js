@@ -114,9 +114,13 @@ class Store {
     return { success: true };
   }
 
-  createLeague({ name, pin, initialParticipants = [] }) {
+  createLeague({ id, name, pin, initialParticipants = [] }) {
     const randomDigits = Math.floor(1000 + Math.random() * 9000);
-    const id = `LIG-${randomDigits}`;
+    const leagueId = (id && String(id).trim()) || `LIG-${randomDigits}`;
+
+    if (this.leagues.has(leagueId)) {
+      return this.getLeagueById(leagueId);
+    }
 
     const cleanParticipants = Array.isArray(initialParticipants)
       ? initialParticipants.map((p) => p.trim()).filter(Boolean)
@@ -134,9 +138,9 @@ class Store {
     }
 
     const league = {
-      id,
-      name: name.trim() || `Liga ${randomDigits}`,
-      pin: pin.trim() || "1234",
+      id: leagueId,
+      name: (name && name.trim()) || `Liga ${randomDigits}`,
+      pin: (pin && pin.trim()) || "1234",
       createdAt: new Date().toISOString(),
       participants: cleanParticipants,
       teams: {},
@@ -144,9 +148,55 @@ class Store {
       matches: [],
     };
 
-    this.leagues.set(id, league);
+    this.leagues.set(leagueId, league);
     this.save();
     return league;
+  }
+
+  syncLeague(leagueData) {
+    if (!leagueData || !leagueData.id) return null;
+    const id = String(leagueData.id).trim();
+    let league = this.getLeagueById(id);
+
+    if (!league) {
+      league = this.createLeague({
+        id,
+        name: leagueData.name || id,
+        pin: leagueData.pin || "1234",
+        initialParticipants: leagueData.participants || [],
+      });
+    } else {
+      if (leagueData.name && leagueData.name.trim()) league.name = leagueData.name.trim();
+      if (leagueData.pin && leagueData.pin.trim()) league.pin = leagueData.pin.trim();
+      if (Array.isArray(leagueData.participants)) {
+        for (const p of leagueData.participants) {
+          this.addParticipant(id, p);
+        }
+      }
+    }
+
+    if (Array.isArray(leagueData.matches)) {
+      for (const m of leagueData.matches) {
+        if (!m) continue;
+        const matchId = String(m.id || "");
+        if (!league.matches.some((existing) => String(existing.id) === matchId)) {
+          this.recordMatch(id, {
+            id: matchId,
+            date: m.date,
+            team1DisplayName: m.team1DisplayName,
+            team2DisplayName: m.team2DisplayName,
+            team1Members: m.team1Members,
+            team2Members: m.team2Members,
+            score1: Number(m.score1) || 0,
+            score2: Number(m.score2) || 0,
+            winnerTeam: Number(m.winnerTeam) || 1,
+          });
+        }
+      }
+    }
+
+    this.save();
+    return this.getLeagueById(id);
   }
 
   addParticipant(leagueId, participantName) {
@@ -179,11 +229,34 @@ class Store {
     return league;
   }
 
+  recordCasualMatch(matchData) {
+    const casualLeagueId = "LIG-CASUAL";
+    let casualLeague = this.getLeagueById(casualLeagueId);
+    if (!casualLeague) {
+      casualLeague = this.createLeague({
+        id: casualLeagueId,
+        name: "Partidas Casuales",
+        pin: "0000",
+      });
+    }
+    return this.recordMatch(casualLeagueId, matchData);
+  }
+
   recordMatch(leagueId, matchData) {
-    const league = this.getLeagueById(leagueId);
-    if (!league) return null;
+    let league = this.getLeagueById(leagueId);
+    if (!league) {
+      const members = [...(matchData.team1Members || []), ...(matchData.team2Members || [])];
+      league = this.createLeague({
+        id: leagueId,
+        name: matchData.leagueName || `Liga ${leagueId}`,
+        pin: matchData.pin || "1234",
+        initialParticipants: members,
+      });
+    }
 
     const {
+      id: customMatchId,
+      date,
       team1DisplayName,
       team2DisplayName,
       team1Members = [],
@@ -193,10 +266,16 @@ class Store {
       winnerTeam = 1,
     } = matchData;
 
-    const matchId = `match_${Date.now()}`;
+    const matchId = customMatchId || `match_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+
+    // Evitar contar partidas duplicadas
+    if (league.matches.some((m) => String(m.id) === String(matchId))) {
+      return league.matches.find((m) => String(m.id) === String(matchId));
+    }
+
     const match = {
       id: matchId,
-      date: new Date().toISOString(),
+      date: date || new Date().toISOString(),
       team1DisplayName: team1DisplayName || formatTeamDisplayName(team1Members),
       team2DisplayName: team2DisplayName || formatTeamDisplayName(team2Members),
       team1Members,

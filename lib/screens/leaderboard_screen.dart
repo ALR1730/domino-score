@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import '../models/leaderboard_entry.dart';
+import '../services/api_client.dart';
 import '../services/leaderboard_service.dart';
+import '../services/league_service.dart';
 import '../theme/app_colors.dart';
 
 class LeaderboardScreen extends StatefulWidget {
@@ -15,6 +18,24 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   final TextEditingController _searchController = TextEditingController();
   final LeaderboardService _service = LeaderboardService();
   String _searchQuery = '';
+
+  bool _useServer = false;
+  bool _isLoadingServer = false;
+  List<TeamStats>? _serverTeams;
+  List<PlayerStats>? _serverPlayers;
+
+  Future<void> _fetchServerRankings() async {
+    setState(() => _isLoadingServer = true);
+    final teams = await ApiClient().fetchGlobalTeams();
+    final players = await ApiClient().fetchGlobalPlayers();
+    if (mounted) {
+      setState(() {
+        _serverTeams = teams;
+        _serverPlayers = players;
+        _isLoadingServer = false;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -187,10 +208,36 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.rose300),
-            tooltip: 'Reiniciar clasificación',
-            onPressed: _confirmReset,
+            icon: const Icon(Icons.cloud_upload_outlined, size: 20, color: AppColors.emerald400),
+            tooltip: 'Sincronizar clasificaciones con el servidor',
+            onPressed: () async {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Sincronizando todas las ligas con el servidor...')),
+              );
+              await LeagueService().syncAllLeaguesWithServer();
+              await _fetchServerRankings();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('✅ Clasificaciones sincronizadas en el servidor Render.'),
+                    backgroundColor: AppColors.emerald600,
+                  ),
+                );
+              }
+            },
           ),
+          if (!_useServer)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.rose300),
+              tooltip: 'Reiniciar clasificación local',
+              onPressed: _confirmReset,
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 20, color: AppColors.slate300),
+              tooltip: 'Actualizar del servidor',
+              onPressed: _fetchServerRankings,
+            ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
@@ -243,6 +290,79 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         builder: (context, _) {
           return Column(
             children: [
+              // Switch between Local and Server
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setState(() => _useServer = false),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 7),
+                          decoration: BoxDecoration(
+                            color: !_useServer ? AppColors.emerald600 : AppColors.slate900,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: !_useServer ? AppColors.emerald500 : AppColors.slate800),
+                          ),
+                          alignment: Alignment.center,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.phone_android, size: 14, color: !_useServer ? Colors.white : AppColors.slate400),
+                              const SizedBox(width: 6),
+                              Text(
+                                'En este Dispositivo',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: !_useServer ? Colors.white : AppColors.slate400,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () {
+                          setState(() => _useServer = true);
+                          if (_serverTeams == null) _fetchServerRankings();
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 7),
+                          decoration: BoxDecoration(
+                            color: _useServer ? AppColors.emerald600 : AppColors.slate900,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _useServer ? AppColors.emerald500 : AppColors.slate800),
+                          ),
+                          alignment: Alignment.center,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.cloud_outlined, size: 14, color: _useServer ? Colors.white : AppColors.slate400),
+                              const SizedBox(width: 6),
+                              Text(
+                                'En el Servidor 🌐',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: _useServer ? Colors.white : AppColors.slate400,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
               // Search field
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
@@ -296,7 +416,19 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   }
 
   Widget _buildTeamsTab() {
-    final allTeams = _service.teamsRanked;
+    if (_useServer && _isLoadingServer) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: AppColors.emerald400),
+            SizedBox(height: 12),
+            Text('Consultando clasificaciones del servidor Render...', style: TextStyle(color: AppColors.slate400, fontSize: 12)),
+          ],
+        ),
+      );
+    }
+    final allTeams = _useServer ? (_serverTeams ?? []) : _service.teamsRanked;
     final filtered = allTeams.where((t) {
       if (_searchQuery.isEmpty) return true;
       final matchDisplay = t.displayName.toLowerCase().contains(_searchQuery);
@@ -415,7 +547,19 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   }
 
   Widget _buildPlayersTab() {
-    final allPlayers = _service.playersRanked;
+    if (_useServer && _isLoadingServer) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: AppColors.emerald400),
+            SizedBox(height: 12),
+            Text('Consultando jugadores del servidor Render...', style: TextStyle(color: AppColors.slate400, fontSize: 12)),
+          ],
+        ),
+      );
+    }
+    final allPlayers = _useServer ? (_serverPlayers ?? []) : _service.playersRanked;
     final filtered = allPlayers.where((p) {
       if (_searchQuery.isEmpty) return true;
       return p.name.toLowerCase().contains(_searchQuery);

@@ -163,6 +163,54 @@ async function runTests() {
     assert.strictEqual(delSuccess.body.success, true);
     console.log("   ✅ Liga eliminada exitosamente.\n");
 
+    // 11. Test Sincronizar Liga completa
+    console.log("11. Test POST /api/leagues/sync (Sincronizar Liga completa)...");
+    const syncRes = await request(
+      server,
+      { method: "POST", path: "/api/leagues/sync" },
+      {
+        id: "LIG-SYNC-TEST",
+        name: "Liga Sincronizada",
+        pin: "5555",
+        participants: ["Hugo", "Paco", "Luis"],
+        matches: [
+          {
+            id: "match_sync_1",
+            date: new Date().toISOString(),
+            team1DisplayName: "Hugo y Paco",
+            team2DisplayName: "Luis y Extra",
+            team1Members: ["Hugo", "Paco"],
+            team2Members: ["Luis", "Extra"],
+            score1: 200,
+            score2: 120,
+            winnerTeam: 1,
+          },
+        ],
+      }
+    );
+    assert.strictEqual(syncRes.status, 200);
+    assert.strictEqual(syncRes.body.success, true);
+    assert.strictEqual(syncRes.body.league.id, "LIG-SYNC-TEST");
+    assert.strictEqual(syncRes.body.league.matches.length, 1);
+    console.log("   ✅ Sincronización de liga completa OK.\n");
+
+    // 12. Test Registrar Partida Casual para Rankings Globales
+    console.log("12. Test POST /api/rankings/record-match (Partida Casual)...");
+    const casualRes = await request(
+      server,
+      { method: "POST", path: "/api/rankings/record-match" },
+      {
+        rawTeam1: "Equipo A",
+        rawTeam2: "Equipo B",
+        score1: 200,
+        score2: 180,
+        winnerTeam: 1,
+      }
+    );
+    assert.strictEqual(casualRes.status, 201);
+    assert.strictEqual(casualRes.body.success, true);
+    console.log("   ✅ Partida casual registrada y ranking global actualizado.\n");
+
     console.log("🎉 ¡TODAS LAS PRUEBAS AUTOMATIZADAS PASARON CON ÉXITO!");
     process.exit(0);
   } catch (err) {

@@ -16,11 +16,38 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
     with SingleTickerProviderStateMixin {
   final LeagueService _service = LeagueService();
   late TabController _tabController;
+  bool _isSyncing = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _service.syncActiveLeagueWithServer();
+    });
+  }
+
+  Future<void> _handleSync() async {
+    if (_isSyncing) return;
+    setState(() => _isSyncing = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Sincronizando rankings con el servidor Render...'),
+        duration: Duration(milliseconds: 900),
+      ),
+    );
+    final ok = await _service.syncActiveLeagueWithServer();
+    if (mounted) {
+      setState(() => _isSyncing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok
+              ? '✅ Rankings sincronizados con el servidor correctamente.'
+              : '⚠️ No se pudo conectar al servidor Render.'),
+          backgroundColor: ok ? AppColors.emerald600 : AppColors.amber700,
+        ),
+      );
+    }
   }
 
   @override
@@ -428,6 +455,18 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.white),
             ),
             actions: [
+              if (active != null)
+                IconButton(
+                  tooltip: 'Sincronizar rankings con el servidor',
+                  icon: _isSyncing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.emerald400),
+                        )
+                      : const Icon(Icons.cloud_sync, color: AppColors.emerald400, size: 21),
+                  onPressed: _handleSync,
+                ),
               IconButton(
                 tooltip: 'Explorar Ligas (Dispositivo y Servidor)',
                 icon: const Icon(Icons.format_list_bulleted, color: AppColors.emerald400, size: 21),
@@ -441,6 +480,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                 icon: const Icon(Icons.more_vert, color: AppColors.slate300),
                 color: AppColors.slate900,
                 onSelected: (val) {
+                  if (val == 'sync') _handleSync();
                   if (val == 'manage') {
                     Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const LeagueManagerScreen()),
@@ -451,6 +491,17 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                   if (val == 'delete' && active != null) _showDeleteActiveLeagueDialog(active);
                 },
                 itemBuilder: (ctx) => [
+                  if (active != null)
+                    const PopupMenuItem(
+                      value: 'sync',
+                      child: Row(
+                        children: [
+                          Icon(Icons.cloud_sync, size: 18, color: AppColors.emerald400),
+                          SizedBox(width: 8),
+                          Text('Sincronizar con Servidor', style: TextStyle(color: AppColors.white, fontSize: 13)),
+                        ],
+                      ),
+                    ),
                   const PopupMenuItem(
                     value: 'manage',
                     child: Row(
@@ -709,9 +760,37 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'RANKING DE PAREJAS / EQUIPOS',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.emerald400, letterSpacing: 0.8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'RANKING DE PAREJAS / EQUIPOS',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.emerald400, letterSpacing: 0.8),
+              ),
+              InkWell(
+                onTap: _handleSync,
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.emerald500.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppColors.emerald500.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.cloud_upload_outlined, size: 12, color: AppColors.emerald400),
+                      const SizedBox(width: 4),
+                      Text(
+                        _isSyncing ? 'Sincronizando...' : 'Sincronizar Servidor',
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.emerald400),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           if (teams.isEmpty)
