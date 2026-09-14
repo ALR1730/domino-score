@@ -204,11 +204,12 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final err = _service.joinLeague(
+                          onPressed: () async {
+                            final err = await _service.joinLeague(
                               nameOrId: searchController.text,
                               pin: pinController.text,
                             );
+                            if (!ctx.mounted) return;
                             if (err != null) {
                               setModalState(() => error = err);
                             } else {

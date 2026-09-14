@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/leaderboard_entry.dart';
 import '../models/league.dart';
 
+import 'api_client.dart';
+
 class LeagueService extends ChangeNotifier {
   static final LeagueService _instance = LeagueService._internal();
   factory LeagueService() => _instance;
@@ -60,14 +62,29 @@ class LeagueService extends ChangeNotifier {
     _activeLeagueId = league.id;
     await _saveData();
     notifyListeners();
+
+    // Sincronizar en segundo plano con el servidor REST si está disponible
+    ApiClient().createLeague(
+      name: league.name,
+      pin: league.pin,
+      initialParticipants: initialParticipants,
+    ).then((serverLeague) {
+      if (serverLeague != null && serverLeague.id != league.id) {
+        // En caso de que el backend haya asignado su propio ID
+        _leagues[serverLeague.id] = serverLeague;
+        _saveData();
+      }
+    }).catchError((_) {});
+
     return league;
   }
 
   /// Intenta unirse a una liga existente usando su Nombre/ID y la Clave/PIN
-  String? joinLeague({
+  /// Busca primero en la memoria local y luego en el servidor REST
+  Future<String?> joinLeague({
     required String nameOrId,
     required String pin,
-  }) {
+  }) async {
     final search = nameOrId.trim().toLowerCase();
     final enteredPin = pin.trim();
 
@@ -76,18 +93,32 @@ class LeagueService extends ChangeNotifier {
       orElse: () => League(id: '', name: '', pin: '', createdAt: DateTime.now()),
     );
 
-    if (match.id.isEmpty) {
-      return 'No se encontró ninguna liga con el nombre o código ingresado.';
+    if (match.id.isNotEmpty) {
+      if (match.pin != enteredPin) {
+        return 'La clave de acceso para "${match.name}" es incorrecta.';
+      }
+      _activeLeagueId = match.id;
+      await _saveData();
+      notifyListeners();
+      return null; // éxito local
     }
 
-    if (match.pin != enteredPin) {
-      return 'La clave de acceso para "${match.name}" es incorrecta.';
-    }
+    // Si no está en caché local, consultar al servidor REST
+    try {
+      final res = await ApiClient().joinLeague(nameOrId: nameOrId, pin: pin);
+      if (res['success'] == true && res['league'] is League) {
+        final serverLeague = res['league'] as League;
+        _leagues[serverLeague.id] = serverLeague;
+        _activeLeagueId = serverLeague.id;
+        await _saveData();
+        notifyListeners();
+        return null; // éxito servidor
+      } else if (res['error'] != null) {
+        return res['error'].toString();
+      }
+    } catch (_) {}
 
-    _activeLeagueId = match.id;
-    _saveData();
-    notifyListeners();
-    return null; // éxito
+    return 'No se encontró ninguna liga con el nombre o código ingresado.';
   }
 
   Future<void> setActiveLeague(String? leagueId) async {
@@ -118,6 +149,9 @@ class LeagueService extends ChangeNotifier {
     league.recordMatch(match);
     await _saveData();
     notifyListeners();
+
+    // Sincronizar en segundo plano con el servidor REST
+    ApiClient().recordMatch(leagueId: league.id, match: match).catchError((_) => false);
   }
 
   // --- Rankings Globales (Agregado de todas las ligas del servidor) ---

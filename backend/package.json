@@ -1,0 +1,18 @@
+{
+  "name": "domino-score-backend",
+  "version": "1.0.0",
+  "description": "Backend REST API para Dominó Score con gestión de ligas, autenticación por PIN y rankings",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node test/api.test.js"
+  },
+  "keywords": ["domino", "score", "league", "flutter", "rest-api"],
+  "author": "ALR1730",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}

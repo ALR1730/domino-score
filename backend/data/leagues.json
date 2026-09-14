@@ -1,0 +1,206 @@
+[
+  {
+    "id": "LIG-1001",
+    "name": "Liga de Campeones Dominó",
+    "pin": "7777",
+    "createdAt": "2026-09-14T15:53:22.317Z",
+    "participants": [
+      "Carlos",
+      "Juan",
+      "Pedro",
+      "Luis",
+      "Andrés",
+      "Marcos"
+    ],
+    "teams": {},
+    "players": {
+      "carlos": {
+        "key": "carlos",
+        "name": "Carlos",
+        "wins": 0,
+        "matchesPlayed": 0
+      },
+      "juan": {
+        "key": "juan",
+        "name": "Juan",
+        "wins": 0,
+        "matchesPlayed": 0
+      },
+      "pedro": {
+        "key": "pedro",
+        "name": "Pedro",
+        "wins": 0,
+        "matchesPlayed": 0
+      },
+      "luis": {
+        "key": "luis",
+        "name": "Luis",
+        "wins": 0,
+        "matchesPlayed": 0
+      }
+    },
+    "matches": []
+  },
+  {
+    "id": "LIG-4853",
+    "name": "Liga de Prueba CI",
+    "pin": "8888",
+    "createdAt": "2026-09-14T15:53:22.703Z",
+    "participants": [
+      "Ana",
+      "Beto",
+      "Carlos",
+      "Diana"
+    ],
+    "teams": {
+      "ana_beto": {
+        "key": "ana_beto",
+        "displayName": "Ana & Beto",
+        "members": [
+          "Ana",
+          "Beto"
+        ],
+        "wins": 1,
+        "matchesPlayed": 1,
+        "totalPoints": 205
+      },
+      "carlos_diana": {
+        "key": "carlos_diana",
+        "displayName": "Carlos & Diana",
+        "members": [
+          "Carlos",
+          "Diana"
+        ],
+        "wins": 0,
+        "matchesPlayed": 1,
+        "totalPoints": 150
+      }
+    },
+    "players": {
+      "ana": {
+        "key": "ana",
+        "name": "Ana",
+        "wins": 1,
+        "matchesPlayed": 1
+      },
+      "beto": {
+        "key": "beto",
+        "name": "Beto",
+        "wins": 1,
+        "matchesPlayed": 1
+      },
+      "carlos": {
+        "key": "carlos",
+        "name": "Carlos",
+        "wins": 0,
+        "matchesPlayed": 1
+      },
+      "diana": {
+        "key": "diana",
+        "name": "Diana",
+        "wins": 0,
+        "matchesPlayed": 1
+      }
+    },
+    "matches": [
+      {
+        "id": "match_1789401202718",
+        "date": "2026-09-14T15:53:22.718Z",
+        "team1DisplayName": "Ana & Beto",
+        "team2DisplayName": "Carlos & Diana",
+        "team1Members": [
+          "Ana",
+          "Beto"
+        ],
+        "team2Members": [
+          "Carlos",
+          "Diana"
+        ],
+        "score1": 205,
+        "score2": 150,
+        "winnerTeam": 1
+      }
+    ]
+  },
+  {
+    "id": "LIG-3887",
+    "name": "Liga de Prueba CI",
+    "pin": "8888",
+    "createdAt": "2026-09-14T15:58:33.254Z",
+    "participants": [
+      "Ana",
+      "Beto",
+      "Carlos",
+      "Diana"
+    ],
+    "teams": {
+      "ana_beto": {
+        "key": "ana_beto",
+        "displayName": "Ana & Beto",
+        "members": [
+          "Ana",
+          "Beto"
+        ],
+        "wins": 1,
+        "matchesPlayed": 1,
+        "totalPoints": 205
+      },
+      "carlos_diana": {
+        "key": "carlos_diana",
+        "displayName": "Carlos & Diana",
+        "members": [
+          "Carlos",
+          "Diana"
+        ],
+        "wins": 0,
+        "matchesPlayed": 1,
+        "totalPoints": 150
+      }
+    },
+    "players": {
+      "ana": {
+        "key": "ana",
+        "name": "Ana",
+        "wins": 1,
+        "matchesPlayed": 1
+      },
+      "beto": {
+        "key": "beto",
+        "name": "Beto",
+        "wins": 1,
+        "matchesPlayed": 1
+      },
+      "carlos": {
+        "key": "carlos",
+        "name": "Carlos",
+        "wins": 0,
+        "matchesPlayed": 1
+      },
+      "diana": {
+        "key": "diana",
+        "name": "Diana",
+        "wins": 0,
+        "matchesPlayed": 1
+      }
+    },
+    "matches": [
+      {
+        "id": "match_1789401513268",
+        "date": "2026-09-14T15:58:33.268Z",
+        "team1DisplayName": "Ana & Beto",
+        "team2DisplayName": "Carlos & Diana",
+        "team1Members": [
+          "Ana",
+          "Beto"
+        ],
+        "team2Members": [
+          "Carlos",
+          "Diana"
+        ],
+        "score1": 205,
+        "score2": 150,
+        "winnerTeam": 1
+      }
+    ]
+  }
+]
