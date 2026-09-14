@@ -80,18 +80,23 @@ class ApiClient {
     return null;
   }
 
-  Future<bool> syncLeague(League league) async {
+  Future<League?> syncLeague(League league) async {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/leagues/sync'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(league.toMap()),
       ).timeout(const Duration(seconds: 12));
-      return res.statusCode == 200 || res.statusCode == 201;
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final data = jsonDecode(res.body);
+        if (data['league'] != null) {
+          return League.fromMap(data['league']);
+        }
+      }
     } catch (e) {
       debugPrint('ApiClient.syncLeague error: $e');
-      return false;
     }
+    return null;
   }
 
   Future<Map<String, dynamic>> joinLeague({

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/league.dart';
 import '../../services/league_service.dart';
@@ -17,6 +18,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
   final LeagueService _service = LeagueService();
   late TabController _tabController;
   bool _isSyncing = false;
+  Timer? _autoSyncTimer;
 
   @override
   void initState() {
@@ -24,6 +26,12 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
     _tabController = TabController(length: 3, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _service.syncActiveLeagueWithServer();
+    });
+    // Auto-sincronización periódica cada 10s para reflejar partidas de otros dispositivos
+    _autoSyncTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted && !_isSyncing) {
+        _service.syncActiveLeagueWithServer();
+      }
     });
   }
 
@@ -52,6 +60,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
 
   @override
   void dispose() {
+    _autoSyncTimer?.cancel();
     _tabController.dispose();
     super.dispose();
   }

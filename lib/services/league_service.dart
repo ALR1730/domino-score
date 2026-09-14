@@ -187,15 +187,24 @@ class LeagueService extends ChangeNotifier {
   Future<bool> _syncLeagueWithServer(League league, [LeagueMatch? newMatch]) async {
     try {
       if (newMatch != null) {
-        final ok = await ApiClient().recordMatch(
+        await ApiClient().recordMatch(
           leagueId: league.id,
           match: newMatch,
           leagueName: league.name,
           pin: league.pin,
         );
-        if (ok) return true;
       }
-      return await ApiClient().syncLeague(league);
+
+      League? updated = await ApiClient().syncLeague(league);
+      updated ??= await ApiClient().fetchLeague(league.id);
+
+      if (updated != null) {
+        _leagues[league.id] = updated;
+        await _saveData();
+        notifyListeners();
+        return true;
+      }
+      return false;
     } catch (e) {
       debugPrint('Error syncing league to server: $e');
       return false;
@@ -205,15 +214,18 @@ class LeagueService extends ChangeNotifier {
   Future<bool> syncActiveLeagueWithServer() async {
     final league = activeLeague;
     if (league == null) return false;
-    final ok = await _syncLeagueWithServer(league);
-    if (ok) notifyListeners();
-    return ok;
+    return await _syncLeagueWithServer(league);
   }
 
   Future<void> syncAllLeaguesWithServer() async {
     for (final league in _leagues.values) {
-      await ApiClient().syncLeague(league);
+      final updated = await ApiClient().syncLeague(league);
+      if (updated != null) {
+        _leagues[league.id] = updated;
+      }
     }
+    await _saveData();
+    notifyListeners();
   }
 
   // --- Rankings Globales (Agregado de todas las ligas del servidor) ---
