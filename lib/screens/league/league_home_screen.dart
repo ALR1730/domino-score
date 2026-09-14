@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/league.dart';
+import '../../services/api_client.dart';
 import '../../services/league_service.dart';
 import '../../theme/app_colors.dart';
 import 'league_manager_screen.dart';
@@ -20,8 +21,6 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
   bool _isSyncing = false;
   Timer? _autoSyncTimer;
   bool _isServerOnline = true;
-  List<Map<String, dynamic>> _cloudLeagues = [];
-  bool _isLoadingCloud = false;
 
   @override
   void initState() {
@@ -40,21 +39,18 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
   }
 
   Future<void> _checkServerStatus() async {
-    final available = await _service.activeLeague != null
-        ? await _service.syncActiveLeagueWithServer()
-        : await _service.allLeagues.isNotEmpty;
-    if (mounted) setState(() => _isServerOnline = true);
-
-    if (_service.activeLeague == null) {
-      setState(() => _isLoadingCloud = true);
-      try {
-        final list = await _service.allLeagues.isEmpty
-            ? await _service.syncAllLeaguesWithServer().then((_) => _service.allLeagues)
-            : _service.allLeagues;
-      } catch (_) {}
-      if (mounted) {
-        setState(() => _isLoadingCloud = false);
+    try {
+      final available = await ApiClient().isServerAvailable();
+      if (mounted) setState(() => _isServerOnline = available);
+      if (available) {
+        if (_service.activeLeague != null) {
+          await _service.syncActiveLeagueWithServer();
+        } else if (_service.allLeagues.isEmpty) {
+          await _service.syncAllLeaguesWithServer();
+        }
       }
+    } catch (_) {
+      if (mounted) setState(() => _isServerOnline = false);
     }
   }
 
@@ -520,12 +516,12 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                   decoration: BoxDecoration(
                     color: _isServerOnline
                         ? AppColors.emerald500.withValues(alpha: 0.15)
-                        : AppColors.amber500.withValues(alpha: 0.15),
+                        : AppColors.amber600.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: _isServerOnline
                           ? AppColors.emerald500.withValues(alpha: 0.4)
-                          : AppColors.amber500.withValues(alpha: 0.4),
+                          : AppColors.amber600.withValues(alpha: 0.4),
                     ),
                   ),
                   child: Row(
@@ -535,7 +531,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                         width: 6,
                         height: 6,
                         decoration: BoxDecoration(
-                          color: _isServerOnline ? AppColors.emerald400 : AppColors.amber400,
+                          color: _isServerOnline ? AppColors.emerald400 : AppColors.amber300,
                           shape: BoxShape.circle,
                         ),
                       ),
