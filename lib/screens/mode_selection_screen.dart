@@ -85,7 +85,7 @@ class ModeSelectionScreen extends StatelessWidget {
                     badgeColor: AppColors.emerald500,
                     description: 'Juega una partida rápida al instante. Nombres libres, sin tablas de clasificación obligatorias.',
                     onTap: () {
-                      final casualGameState = GameState();
+                      final casualGameState = GameState.casual();
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (ctx) => DominoGameScreen(

@@ -52,6 +52,17 @@ router.get("/:id", (req, res) => {
   res.json({ success: true, league });
 });
 
+// DELETE /api/leagues/:id - Eliminar liga (admin con PIN)
+router.delete("/:id", (req, res) => {
+  const pin = (req.body && req.body.pin) || req.query.pin;
+  const result = store.deleteLeague(req.params.id, pin);
+  if (!result.success) {
+    const isNotFound = result.error && result.error.includes("no encontrada");
+    return res.status(isNotFound ? 404 : 401).json(result);
+  }
+  res.json({ success: true, message: "Liga eliminada correctamente." });
+});
+
 // POST /api/leagues/:id/participants - Agregar participante
 router.post("/:id/participants", (req, res) => {
   const { name } = req.body;

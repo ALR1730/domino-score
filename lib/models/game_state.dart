@@ -5,17 +5,64 @@ import '../services/leaderboard_service.dart';
 import 'round.dart';
 
 class GameState extends ChangeNotifier {
-  static const String _prefKey = 'domino_score_state';
+  final String storageKey;
+  final bool isLeagueMode;
 
   int _metaPuntos = 200;
-  String _nombreE1 = 'Pareja 1';
-  String _nombreE2 = 'Pareja 2';
+  String _nombreE1 = 'Nosotros';
+  String _nombreE2 = 'Ellos';
   List<Round> _rondas = [];
   bool _isLoaded = false;
   bool _matchRecorded = false;
 
-  GameState() {
-    _loadFromPrefs();
+  GameState({
+    this.storageKey = 'domino_casual_game_state_v2',
+    String? initialNombreE1,
+    String? initialNombreE2,
+    int? initialMetaPuntos,
+    this.isLeagueMode = false,
+  }) {
+    if (initialNombreE1 != null && initialNombreE1.trim().isNotEmpty) {
+      _nombreE1 = initialNombreE1.trim();
+    } else {
+      _nombreE1 = isLeagueMode ? 'Equipo 1' : 'Nosotros';
+    }
+
+    if (initialNombreE2 != null && initialNombreE2.trim().isNotEmpty) {
+      _nombreE2 = initialNombreE2.trim();
+    } else {
+      _nombreE2 = isLeagueMode ? 'Equipo 2' : 'Ellos';
+    }
+
+    if (initialMetaPuntos != null && initialMetaPuntos > 0) {
+      _metaPuntos = initialMetaPuntos;
+    }
+
+    _loadFromPrefs(preserveCustomNames: initialNombreE1 != null || initialNombreE2 != null);
+  }
+
+  factory GameState.casual() {
+    return GameState(
+      storageKey: 'domino_casual_game_state_v2',
+      initialNombreE1: 'Nosotros',
+      initialNombreE2: 'Ellos',
+      isLeagueMode: false,
+    );
+  }
+
+  factory GameState.league({
+    required String leagueId,
+    required String team1Name,
+    required String team2Name,
+    int metaPuntos = 200,
+  }) {
+    return GameState(
+      storageKey: 'domino_league_game_state_${leagueId.replaceAll('-', '_')}',
+      initialNombreE1: team1Name,
+      initialNombreE2: team2Name,
+      initialMetaPuntos: metaPuntos,
+      isLeagueMode: true,
+    );
   }
 
   int get metaPuntos => _metaPuntos;
@@ -125,31 +172,35 @@ class GameState extends ChangeNotifier {
   void _checkAndRecordMatch() {
     if (isGameOver && !_matchRecorded) {
       _matchRecorded = true;
-      LeaderboardService().recordMatch(
-        rawTeam1: _nombreE1,
-        rawTeam2: _nombreE2,
-        score1: totalE1,
-        score2: totalE2,
-        winnerTeam: ganador,
-      );
+      if (!isLeagueMode) {
+        LeaderboardService().recordMatch(
+          rawTeam1: _nombreE1,
+          rawTeam2: _nombreE2,
+          score1: totalE1,
+          score2: totalE2,
+          winnerTeam: ganador,
+        );
+      }
     }
   }
 
-  Future<void> _loadFromPrefs() async {
+  Future<void> _loadFromPrefs({bool preserveCustomNames = false}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final jsonStr = prefs.getString(_prefKey);
+      final jsonStr = prefs.getString(storageKey);
       if (jsonStr != null) {
         final data = jsonDecode(jsonStr) as Map<String, dynamic>;
-        _metaPuntos = data['metaPuntos'] as int? ?? 200;
-        _nombreE1 = data['nombreE1'] as String? ?? 'Pareja 1';
-        _nombreE2 = data['nombreE2'] as String? ?? 'Pareja 2';
+        if (!preserveCustomNames) {
+          _metaPuntos = data['metaPuntos'] as int? ?? _metaPuntos;
+          _nombreE1 = data['nombreE1'] as String? ?? _nombreE1;
+          _nombreE2 = data['nombreE2'] as String? ?? _nombreE2;
+        }
         _matchRecorded = data['matchRecorded'] as bool? ?? false;
         final rawRondas = data['rondas'] as List<dynamic>? ?? [];
         _rondas = rawRondas.map((r) => Round.fromMap(r as Map<String, dynamic>)).toList();
       }
     } catch (e) {
-      debugPrint('Error loading preferences: $e');
+      debugPrint('Error loading preferences for $storageKey: $e');
     } finally {
       _isLoaded = true;
       notifyListeners();
@@ -166,9 +217,9 @@ class GameState extends ChangeNotifier {
         'matchRecorded': _matchRecorded,
         'rondas': _rondas.map((r) => r.toMap()).toList(),
       };
-      await prefs.setString(_prefKey, jsonEncode(data));
+      await prefs.setString(storageKey, jsonEncode(data));
     } catch (e) {
-      debugPrint('Error saving preferences: $e');
+      debugPrint('Error saving preferences for $storageKey: $e');
     }
   }
 }

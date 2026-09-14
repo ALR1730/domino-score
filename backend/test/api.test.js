@@ -9,15 +9,20 @@ const {
 // Helper para hacer requests HTTP locales contra la app Express
 function request(server, options, body = null) {
   return new Promise((resolve, reject) => {
+    const payload = body ? (typeof body === "string" ? body : JSON.stringify(body)) : null;
+    const headers = {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    };
+    if (payload) {
+      headers["Content-Length"] = Buffer.byteLength(payload);
+    }
     const req = http.request(
       {
         host: "127.0.0.1",
         port: server.address().port,
         ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...(options.headers || {}),
-        },
+        headers,
       },
       (res) => {
         let data = "";
@@ -34,8 +39,8 @@ function request(server, options, body = null) {
       }
     );
     req.on("error", reject);
-    if (body) {
-      req.write(typeof body === "string" ? body : JSON.stringify(body));
+    if (payload) {
+      req.write(payload);
     }
     req.end();
   });
@@ -136,6 +141,27 @@ async function runTests() {
     assert.strictEqual(rankingsPlayers.status, 200);
     assert.ok(Array.isArray(rankingsPlayers.body.players));
     console.log(`   ✅ Ranking global de jugadores OK (${rankingsPlayers.body.players.length} jugadores).\n`);
+
+    // 9. Test Eliminar Liga con PIN incorrecto (Rechazo)
+    console.log("9. Test DELETE /api/leagues/:id (Rechazo con PIN inválido)...");
+    const delFail = await request(
+      server,
+      { method: "DELETE", path: `/api/leagues/${createdLeague.id}` },
+      { pin: "wrong-pin" }
+    );
+    assert.strictEqual(delFail.status, 401);
+    console.log("   ✅ Rechazo con PIN incorrecto OK.\n");
+
+    // 10. Test Eliminar Liga con PIN correcto (Éxito)
+    console.log("10. Test DELETE /api/leagues/:id (Éxito con PIN correcto)...");
+    const delSuccess = await request(
+      server,
+      { method: "DELETE", path: `/api/leagues/${createdLeague.id}` },
+      { pin: "8888" }
+    );
+    assert.strictEqual(delSuccess.status, 200);
+    assert.strictEqual(delSuccess.body.success, true);
+    console.log("   ✅ Liga eliminada exitosamente.\n");
 
     console.log("🎉 ¡TODAS LAS PRUEBAS AUTOMATIZADAS PASARON CON ÉXITO!");
     process.exit(0);

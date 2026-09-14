@@ -171,4 +171,22 @@ class ApiClient {
     }
     return [];
   }
+
+  Future<Map<String, dynamic>> deleteLeague(String id, {required String pin}) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/api/leagues/$id'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'pin': pin}),
+      ).timeout(const Duration(seconds: 10));
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 && data['success'] == true) {
+        return {'success': true};
+      } else {
+        return {'success': false, 'error': data['error'] ?? 'No se pudo eliminar la liga.'};
+      }
+    } catch (e) {
+      return {'success': false, 'error': 'Error de conexión al servidor: $e'};
+    }
+  }
 }

@@ -101,6 +101,19 @@ class Store {
     return null;
   }
 
+  deleteLeague(id, pin) {
+    const league = this.getLeagueById(id);
+    if (!league) {
+      return { success: false, error: "Liga no encontrada." };
+    }
+    if (!pin || String(pin).trim() !== league.pin) {
+      return { success: false, error: "PIN incorrecto para eliminar la liga." };
+    }
+    this.leagues.delete(id);
+    this.save();
+    return { success: true };
+  }
+
   createLeague({ name, pin, initialParticipants = [] }) {
     const randomDigits = Math.floor(1000 + Math.random() * 9000);
     const id = `LIG-${randomDigits}`;

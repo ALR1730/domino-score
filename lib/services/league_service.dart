@@ -131,6 +131,24 @@ class LeagueService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Elimina una liga del dispositivo y opcionalmente del servidor si se provee el PIN
+  Future<String?> deleteLeague(String id, {String? pin, bool deleteOnServer = true}) async {
+    if (deleteOnServer && pin != null && pin.trim().isNotEmpty) {
+      final res = await ApiClient().deleteLeague(id, pin: pin.trim());
+      if (res['success'] != true) {
+        return res['error'] ?? 'Error al eliminar la liga en el servidor.';
+      }
+    }
+
+    _leagues.remove(id);
+    if (_activeLeagueId == id) {
+      _activeLeagueId = _leagues.isNotEmpty ? _leagues.keys.first : null;
+    }
+    await _saveData();
+    notifyListeners();
+    return null; // éxito
+  }
+
   Future<void> addParticipantToActiveLeague(String name) async {
     final league = activeLeague;
     if (league == null) return;

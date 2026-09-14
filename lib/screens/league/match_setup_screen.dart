@@ -83,10 +83,12 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
     final team1Name = '$_team1Player1 & $_team1Player2';
     final team2Name = '$_team2Player1 & $_team2Player2';
 
-    final gameState = GameState();
-    gameState.setNombreE1(team1Name);
-    gameState.setNombreE2(team2Name);
-    gameState.setMetaPuntos(_metaPuntos);
+    final gameState = GameState.league(
+      leagueId: widget.league.id,
+      team1Name: team1Name,
+      team2Name: team2Name,
+      metaPuntos: _metaPuntos,
+    );
     gameState.reiniciarPartida();
 
     Navigator.of(context).push(
