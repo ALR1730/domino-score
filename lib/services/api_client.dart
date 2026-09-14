@@ -156,4 +156,19 @@ class ApiClient {
     }
     return null;
   }
+
+  Future<List<Map<String, dynamic>>> fetchServerLeagues() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/leagues')).timeout(const Duration(seconds: 12));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['leagues'] is List) {
+          return List<Map<String, dynamic>>.from(data['leagues']);
+        }
+      }
+    } catch (e) {
+      debugPrint('ApiClient.fetchServerLeagues error: $e');
+    }
+    return [];
+  }
 }

@@ -4,6 +4,7 @@ import '../theme/app_colors.dart';
 import 'domino_game_screen.dart';
 import 'league/global_ranking_screen.dart';
 import 'league/league_home_screen.dart';
+import 'league/league_manager_screen.dart';
 
 class ModeSelectionScreen extends StatelessWidget {
   const ModeSelectionScreen({super.key});
@@ -130,6 +131,30 @@ class ModeSelectionScreen extends StatelessWidget {
                     icon: const Icon(Icons.public, size: 18, color: AppColors.emerald400),
                     label: const Text(
                       'Ver Ranking General del Servidor',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.slate200),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: AppColors.slate900,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: const BorderSide(color: AppColors.slate800),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Button: Explorar Ligas (Dispositivo y Servidor)
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (ctx) => const LeagueManagerScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.format_list_bulleted, size: 18, color: AppColors.indigo400),
+                    label: const Text(
+                      'Mis Ligas y Ligas en el Servidor',
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.slate200),
                     ),
                     style: OutlinedButton.styleFrom(
