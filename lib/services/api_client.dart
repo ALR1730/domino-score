@@ -46,7 +46,7 @@ class ApiClient {
     try {
       final res = await http
           .get(Uri.parse('$baseUrl/health'))
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 15));
       return res.statusCode == 200;
     } catch (_) {
       return false;
@@ -69,7 +69,7 @@ class ApiClient {
           'pin': pin,
           'initialParticipants': initialParticipants,
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 25));
       if (res.statusCode == 201) {
         final data = jsonDecode(res.body);
         return League.fromMap(data['league']);
@@ -86,7 +86,7 @@ class ApiClient {
         Uri.parse('$baseUrl/api/leagues/sync'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(league.toMap()),
-      ).timeout(const Duration(seconds: 12));
+      ).timeout(const Duration(seconds: 25));
       if (res.statusCode == 200 || res.statusCode == 201) {
         final data = jsonDecode(res.body);
         if (data['league'] != null) {
@@ -108,7 +108,7 @@ class ApiClient {
         Uri.parse('$baseUrl/api/leagues/join'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'nameOrId': nameOrId, 'pin': pin}),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 25));
       final data = jsonDecode(res.body);
       if (res.statusCode == 200 && data['success'] == true) {
         return {'success': true, 'league': League.fromMap(data['league'])};
@@ -122,7 +122,7 @@ class ApiClient {
 
   Future<League?> fetchLeague(String id) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/leagues/$id')).timeout(const Duration(seconds: 10));
+      final res = await http.get(Uri.parse('$baseUrl/api/leagues/$id')).timeout(const Duration(seconds: 25));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         return League.fromMap(data['league']);
@@ -148,7 +148,7 @@ class ApiClient {
         Uri.parse('$baseUrl/api/leagues/$leagueId/matches'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 25));
       return res.statusCode == 201;
     } catch (e) {
       debugPrint('ApiClient.recordMatch error: $e');
@@ -158,7 +158,7 @@ class ApiClient {
 
   Future<List<TeamStats>?> fetchGlobalTeams() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/rankings/global/teams')).timeout(const Duration(seconds: 10));
+      final res = await http.get(Uri.parse('$baseUrl/api/rankings/global/teams')).timeout(const Duration(seconds: 20));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['teams'] as List<dynamic>;
@@ -172,7 +172,7 @@ class ApiClient {
 
   Future<List<PlayerStats>?> fetchGlobalPlayers() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/rankings/global/players')).timeout(const Duration(seconds: 10));
+      final res = await http.get(Uri.parse('$baseUrl/api/rankings/global/players')).timeout(const Duration(seconds: 20));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['players'] as List<dynamic>;
@@ -186,7 +186,7 @@ class ApiClient {
 
   Future<List<Map<String, dynamic>>> fetchServerLeagues() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/leagues')).timeout(const Duration(seconds: 12));
+      final res = await http.get(Uri.parse('$baseUrl/api/leagues')).timeout(const Duration(seconds: 25));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true && data['leagues'] is List) {
@@ -207,7 +207,7 @@ class ApiClient {
         Uri.parse('$baseUrl/api/leagues/$id?pin=${Uri.encodeComponent(cleanPin)}'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'pin': cleanPin}),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 20));
 
       // 2. Si responde 404 Endpoint no encontrado, intentar fallback POST
       if (res.statusCode == 404) {

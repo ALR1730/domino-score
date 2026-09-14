@@ -683,6 +683,22 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const LeagueManagerScreen()),
+                  );
+                },
+                icon: const Icon(Icons.cloud_outlined, size: 16, color: AppColors.emerald400),
+                label: const Text(
+                  'Ver Ligas Registradas en la Nube / Dispositivo',
+                  style: TextStyle(color: AppColors.emerald400, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
           ],
         ),
       ),
