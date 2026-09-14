@@ -202,12 +202,20 @@ async function runTests() {
     assert.ok(countBefore >= 2);
     console.log("   ✅ Verificado: Solo las ligas oficiales afectan el ranking global.\n");
 
+    // Limpiar ligas de prueba generadas durante los tests
+    const store = require("../src/models/store");
+    store.leagues.clear();
+    store.save();
+
     console.log("🎉 ¡TODAS LAS PRUEBAS AUTOMATIZADAS PASARON CON ÉXITO!");
     process.exit(0);
   } catch (err) {
     console.error("❌ Error en las pruebas:", err);
     process.exit(1);
   } finally {
+    const store = require("../src/models/store");
+    store.leagues.clear();
+    store.save();
     server.close();
   }
 }

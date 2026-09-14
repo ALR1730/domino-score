@@ -330,23 +330,27 @@ class LeagueService extends ChangeNotifier {
         for (final id in toRemove) {
           _leagues.remove(id);
         }
-        if (toRemove.isNotEmpty) {
+        // Limpiar ligas de prueba o demo del entorno de desarrollo
+        final testKeys = _leagues.keys.where((id) {
+          final l = _leagues[id]!;
+          return id == 'LIG-1001' ||
+              id == 'LIG-SYNC-TEST' ||
+              id == 'LIG-4853' ||
+              id == 'LIG-3887' ||
+              id == 'LIG-1600' ||
+              l.name == 'Liga de Campeones Dominó' ||
+              l.name.contains('Prueba CI') ||
+              l.name == 'Liga Sincronizada';
+        }).toList();
+        for (final k in testKeys) {
+          _leagues.remove(k);
+        }
+        if (_activeLeagueId != null && !_leagues.containsKey(_activeLeagueId)) {
+          _activeLeagueId = _leagues.isNotEmpty ? _leagues.keys.first : null;
+        }
+        if (toRemove.isNotEmpty || testKeys.isNotEmpty) {
           await _saveData();
         }
-      }
-
-      // Si no hay ligas, inicializar con una de demostración
-      if (_leagues.isEmpty) {
-        final demo = League(
-          id: 'LIG-1001',
-          name: 'Liga de Campeones Dominó',
-          pin: '7777',
-          createdAt: DateTime.now().subtract(const Duration(days: 7)),
-          participants: ['Carlos', 'Juan', 'Pedro', 'Luis', 'Andrés', 'Marcos'],
-        );
-        _leagues[demo.id] = demo;
-        _activeLeagueId = demo.id;
-        await _saveData();
       }
     } catch (e) {
       debugPrint('Error loading leagues: $e');

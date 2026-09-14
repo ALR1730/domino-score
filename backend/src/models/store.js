@@ -26,41 +26,22 @@ class Store {
         const raw = fs.readFileSync(DATA_FILE, "utf-8");
         const list = JSON.parse(raw);
         for (const item of list) {
-          this.leagues.set(item.id, item);
+          if (
+            item &&
+            item.id &&
+            item.id !== "LIG-CASUAL" &&
+            item.id !== "LIG-1001" &&
+            item.id !== "LIG-SYNC-TEST" &&
+            item.name !== "Liga de Campeones Dominó" &&
+            item.name !== "Liga de Prueba CI" &&
+            item.name !== "Liga Sincronizada"
+          ) {
+            this.leagues.set(item.id, item);
+          }
         }
-      } else {
-        // Inicializar con una liga demo
-        const demoId = "LIG-1001";
-        const demoLeague = {
-          id: demoId,
-          name: "Liga de Campeones Dominó",
-          pin: "7777",
-          createdAt: new Date().toISOString(),
-          participants: [
-            "Carlos",
-            "Juan",
-            "Pedro",
-            "Luis",
-            "Andrés",
-            "Marcos",
-          ],
-          teams: {},
-          players: {
-            carlos: { key: "carlos", name: "Carlos", wins: 0, matchesPlayed: 0 },
-            juan: { key: "juan", name: "Juan", wins: 0, matchesPlayed: 0 },
-            pedro: { key: "pedro", name: "Pedro", wins: 0, matchesPlayed: 0 },
-            luis: { key: "luis", name: "Luis", wins: 0, matchesPlayed: 0 },
-          },
-          matches: [],
-        };
-        this.leagues.set(demoId, demoLeague);
-        this.save();
       }
 
-      if (this.leagues.has("LIG-CASUAL")) {
-        this.leagues.delete("LIG-CASUAL");
-        this.save();
-      }
+      this.save();
     } catch (err) {
       console.error("Error cargando store:", err);
     }
