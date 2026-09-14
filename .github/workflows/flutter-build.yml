@@ -9,41 +9,45 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build & Release Artifacts
+  build-android:
+    name: Compilar APK Android
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
 
-      - name: Set up Flutter
+      - name: Configurar Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Verify code quality (analyze & test)
+      - name: Instalar dependencias y pruebas
         run: |
+          flutter pub get
           flutter analyze
           flutter test
 
-      - name: Build Android APK (Release)
+      - name: Compilar APK Android (Release)
         run: flutter build apk --release
 
-      - name: Upload Android APK Artifact
+      - name: Subir Instalador APK como Artefacto
         uses: actions/upload-artifact@v4
         with:
           name: domino-score-android-apk
@@ -51,10 +55,27 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Build Flutter Web (Release for GitHub Pages)
+  build-web:
+    name: Compilar Versión Web & Desplegar
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Instalar dependencias
+        run: flutter pub get
+
+      - name: Compilar Flutter Web
         run: flutter build web --release --base-href "/domino-score/"
 
-      - name: Upload Web Artifact
+      - name: Subir Artefacto Web
         uses: actions/upload-artifact@v4
         with:
           name: domino-score-web
@@ -62,8 +83,9 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Deploy to GitHub Pages
+      - name: Desplegar a GitHub Pages (Rama gh-pages)
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        continue-on-error: true
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
