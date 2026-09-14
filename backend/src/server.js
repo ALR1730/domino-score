@@ -15,7 +15,8 @@ app.get("/health", (req, res) => {
   res.json({
     status: "ok",
     service: "domino-score-backend",
-    version: "1.0.0",
+    version: "1.1.0",
+    features: ["delete-league", "global-rankings", "match-history"],
     timestamp: new Date().toISOString(),
   });
 });

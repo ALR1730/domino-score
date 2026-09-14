@@ -52,16 +52,28 @@ router.get("/:id", (req, res) => {
   res.json({ success: true, league });
 });
 
-// DELETE /api/leagues/:id - Eliminar liga (admin con PIN)
-router.delete("/:id", (req, res) => {
+const handleDelete = (req, res) => {
+  const id = req.params.id || (req.body && req.body.id);
   const pin = (req.body && req.body.pin) || req.query.pin;
-  const result = store.deleteLeague(req.params.id, pin);
+  if (!id) {
+    return res.status(400).json({ success: false, error: "ID de la liga es requerido." });
+  }
+  const result = store.deleteLeague(id, pin);
   if (!result.success) {
     const isNotFound = result.error && result.error.includes("no encontrada");
     return res.status(isNotFound ? 404 : 401).json(result);
   }
   res.json({ success: true, message: "Liga eliminada correctamente." });
-});
+};
+
+// DELETE /api/leagues/:id - Eliminar liga (admin con PIN)
+router.delete("/:id", handleDelete);
+
+// POST /api/leagues/:id/delete - Soporte alternativo POST
+router.post("/:id/delete", handleDelete);
+
+// POST /api/leagues/delete - Soporte POST con { id, pin } en el body
+router.post("/delete", handleDelete);
 
 // POST /api/leagues/:id/participants - Agregar participante
 router.post("/:id/participants", (req, res) => {

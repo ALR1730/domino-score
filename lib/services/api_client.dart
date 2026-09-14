@@ -173,17 +173,38 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> deleteLeague(String id, {required String pin}) async {
+    final cleanPin = pin.trim();
     try {
-      final res = await http.delete(
-        Uri.parse('$baseUrl/api/leagues/$id'),
+      // 1. Intento principal: DELETE con body y query param por compatibilidad
+      http.Response res = await http.delete(
+        Uri.parse('$baseUrl/api/leagues/$id?pin=${Uri.encodeComponent(cleanPin)}'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'pin': pin}),
+        body: jsonEncode({'pin': cleanPin}),
       ).timeout(const Duration(seconds: 10));
+
+      // 2. Si responde 404 Endpoint no encontrado, intentar fallback POST
+      if (res.statusCode == 404) {
+        try {
+          final testData = jsonDecode(res.body);
+          if (testData['error'] == 'Endpoint no encontrado') {
+            res = await http.post(
+              Uri.parse('$baseUrl/api/leagues/$id/delete'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'pin': cleanPin}),
+            ).timeout(const Duration(seconds: 10));
+          }
+        } catch (_) {}
+      }
+
       final data = jsonDecode(res.body);
       if (res.statusCode == 200 && data['success'] == true) {
         return {'success': true};
       } else {
-        return {'success': false, 'error': data['error'] ?? 'No se pudo eliminar la liga.'};
+        String err = data['error'] ?? 'No se pudo eliminar la liga.';
+        if (err == 'Endpoint no encontrado') {
+          err = 'El servidor Render aún está ejecutando la versión previa. En tu dashboard de Render haz clic en "Manual Deploy" -> "Deploy latest commit".';
+        }
+        return {'success': false, 'error': err};
       }
     } catch (e) {
       return {'success': false, 'error': 'Error de conexión al servidor: $e'};
