@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/leaderboard_entry.dart';
-import 'api_client.dart';
 
 class LeaderboardService extends ChangeNotifier {
   static final LeaderboardService _instance = LeaderboardService._internal();
@@ -102,15 +101,6 @@ class LeaderboardService extends ChangeNotifier {
 
     await _saveData();
     notifyListeners();
-
-    // Sincronizar en segundo plano con el ranking global del servidor REST
-    ApiClient().recordCasualMatch(
-      rawTeam1: rawTeam1,
-      rawTeam2: rawTeam2,
-      score1: score1,
-      score2: score2,
-      winnerTeam: winnerTeam,
-    ).catchError((_) => false);
   }
 
   void _updatePlayersFromTeam(List<String> members, {required bool isWinner}) {

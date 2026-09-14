@@ -56,6 +56,11 @@ class Store {
         this.leagues.set(demoId, demoLeague);
         this.save();
       }
+
+      if (this.leagues.has("LIG-CASUAL")) {
+        this.leagues.delete("LIG-CASUAL");
+        this.save();
+      }
     } catch (err) {
       console.error("Error cargando store:", err);
     }
@@ -74,14 +79,16 @@ class Store {
   }
 
   getAllLeaguesPublic() {
-    return Array.from(this.leagues.values()).map((l) => ({
-      id: l.id,
-      name: l.name,
-      createdAt: l.createdAt,
-      participantsCount: (l.participants || []).length,
-      matchesCount: (l.matches || []).length,
-      teamsCount: Object.keys(l.teams || {}).length,
-    }));
+    return Array.from(this.leagues.values())
+      .filter((l) => l.id !== "LIG-CASUAL")
+      .map((l) => ({
+        id: l.id,
+        name: l.name,
+        createdAt: l.createdAt,
+        participantsCount: (l.participants || []).length,
+        matchesCount: (l.matches || []).length,
+        teamsCount: Object.keys(l.teams || {}).length,
+      }));
   }
 
   getLeagueById(id) {
@@ -229,19 +236,6 @@ class Store {
     return league;
   }
 
-  recordCasualMatch(matchData) {
-    const casualLeagueId = "LIG-CASUAL";
-    let casualLeague = this.getLeagueById(casualLeagueId);
-    if (!casualLeague) {
-      casualLeague = this.createLeague({
-        id: casualLeagueId,
-        name: "Partidas Casuales",
-        pin: "0000",
-      });
-    }
-    return this.recordMatch(casualLeagueId, matchData);
-  }
-
   recordMatch(leagueId, matchData) {
     let league = this.getLeagueById(leagueId);
     if (!league) {
@@ -350,6 +344,7 @@ class Store {
     const aggregate = new Map();
 
     for (const league of this.leagues.values()) {
+      if (league.id === "LIG-CASUAL") continue;
       for (const team of Object.values(league.teams || {})) {
         if (!aggregate.has(team.key)) {
           aggregate.set(team.key, {
@@ -387,6 +382,7 @@ class Store {
     const aggregate = new Map();
 
     for (const league of this.leagues.values()) {
+      if (league.id === "LIG-CASUAL") continue;
       for (const player of Object.values(league.players || {})) {
         if (!aggregate.has(player.key)) {
           aggregate.set(player.key, {

@@ -79,30 +79,55 @@ class WinnerDialog extends StatelessWidget {
 
             const SizedBox(height: 8),
 
-            // Saved to leaderboard badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.emerald950.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.emerald500.withValues(alpha: 0.4)),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check_circle_outline, size: 13, color: AppColors.emerald400),
-                  SizedBox(width: 5),
-                  Text(
-                    'Guardado en Clasificación',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.emerald400,
+            // Badge de estado
+            if (gameState.isLeagueMode)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.emerald950.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.emerald500.withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.emoji_events, size: 13, color: AppColors.emerald400),
+                    SizedBox(width: 5),
+                    Text(
+                      'Guardado en Ranking de Liga',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.emerald400,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.slate800,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.slate700),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.sports_esports_outlined, size: 13, color: AppColors.slate400),
+                    SizedBox(width: 5),
+                    Text(
+                      'Partida Casual (No afecta ranking)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.slate400,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
 
             const SizedBox(height: 14),
 

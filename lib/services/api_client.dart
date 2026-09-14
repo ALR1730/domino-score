@@ -94,32 +94,6 @@ class ApiClient {
     }
   }
 
-  Future<bool> recordCasualMatch({
-    required String rawTeam1,
-    required String rawTeam2,
-    required int score1,
-    required int score2,
-    required int winnerTeam,
-  }) async {
-    try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/api/rankings/record-match'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'rawTeam1': rawTeam1,
-          'rawTeam2': rawTeam2,
-          'score1': score1,
-          'score2': score2,
-          'winnerTeam': winnerTeam,
-        }),
-      ).timeout(const Duration(seconds: 10));
-      return res.statusCode == 201;
-    } catch (e) {
-      debugPrint('ApiClient.recordCasualMatch error: $e');
-      return false;
-    }
-  }
-
   Future<Map<String, dynamic>> joinLeague({
     required String nameOrId,
     required String pin,

@@ -170,18 +170,8 @@ class GameState extends ChangeNotifier {
   }
 
   void _checkAndRecordMatch() {
-    if (isGameOver && !_matchRecorded) {
-      _matchRecorded = true;
-      if (!isLeagueMode) {
-        LeaderboardService().recordMatch(
-          rawTeam1: _nombreE1,
-          rawTeam2: _nombreE2,
-          score1: totalE1,
-          score2: totalE2,
-          winnerTeam: ganador,
-        );
-      }
-    }
+    // Las partidas casuales no afectan el ranking.
+    // Solo las ligas oficiales registradas a través de LeagueService afectan el ranking.
   }
 
   Future<void> _loadFromPrefs({bool preserveCustomNames = false}) async {
