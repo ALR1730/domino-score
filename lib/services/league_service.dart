@@ -85,11 +85,13 @@ class LeagueService extends ChangeNotifier {
     required String nameOrId,
     required String pin,
   }) async {
-    final search = nameOrId.trim().toLowerCase();
+    final search = NameParser.removeDiacritics(nameOrId.trim().toLowerCase());
     final enteredPin = pin.trim();
 
     final match = _leagues.values.firstWhere(
-      (l) => l.id.toLowerCase() == search || l.name.trim().toLowerCase() == search,
+      (l) =>
+          l.id.toLowerCase() == search ||
+          NameParser.removeDiacritics(l.name.trim().toLowerCase()) == search,
       orElse: () => League(id: '', name: '', pin: '', createdAt: DateTime.now()),
     );
 
@@ -103,7 +105,7 @@ class LeagueService extends ChangeNotifier {
       return null; // éxito local
     }
 
-    // Si no está en caché local, consultar al servidor REST
+    // Si no está en caché local, intentar consultar al servidor REST
     try {
       final res = await ApiClient().joinLeague(nameOrId: nameOrId, pin: pin);
       if (res['success'] == true && res['league'] is League) {
@@ -113,12 +115,14 @@ class LeagueService extends ChangeNotifier {
         await _saveData();
         notifyListeners();
         return null; // éxito servidor
+      } else if (res['isConnectionError'] == true) {
+        return 'No se encontró la liga "$nameOrId" en este dispositivo.\n(Tip: prueba buscando por su código exacto ej. LIG-9872)';
       } else if (res['error'] != null) {
         return res['error'].toString();
       }
     } catch (_) {}
 
-    return 'No se encontró ninguna liga con el nombre o código ingresado.';
+    return 'No se encontró ninguna liga con el nombre o código ingresado.\n(Tip: verifica que esté bien escrito o usa el código ID)';
   }
 
   Future<void> setActiveLeague(String? leagueId) async {

@@ -57,7 +57,7 @@ class ApiClient {
         Uri.parse('$baseUrl/api/leagues/join'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'nameOrId': nameOrId, 'pin': pin}),
-      );
+      ).timeout(const Duration(seconds: 3));
       final data = jsonDecode(res.body);
       if (res.statusCode == 200 && data['success'] == true) {
         return {'success': true, 'league': League.fromMap(data['league'])};
@@ -65,7 +65,7 @@ class ApiClient {
         return {'success': false, 'error': data['error'] ?? 'Error al unirse a la liga'};
       }
     } catch (e) {
-      return {'success': false, 'error': 'No se pudo conectar al servidor REST: $e'};
+      return {'success': false, 'error': 'Servidor no disponible', 'isConnectionError': true};
     }
   }
 
