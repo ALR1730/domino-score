@@ -754,12 +754,28 @@ class _LeagueManagerScreenState extends State<LeagueManagerScreen>
                         ),
                         const SizedBox(width: 8),
                       ],
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 17, color: AppColors.rose300),
-                        tooltip: 'Eliminar liga',
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _showDeleteLocalLeagueDialog(league),
+                      InkWell(
+                        onTap: () => _showDeleteLocalLeagueDialog(league),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.delete_outline, size: 14, color: Colors.redAccent),
+                              SizedBox(width: 4),
+                              Text(
+                                'Eliminar',
+                                style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -1031,12 +1047,28 @@ class _LeagueManagerScreenState extends State<LeagueManagerScreen>
                             style: const TextStyle(color: AppColors.slate400, fontSize: 11),
                           ),
                           const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.rose300),
-                            tooltip: 'Eliminar del servidor (Admin)',
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onPressed: () => _showDeleteServerLeagueDialog(id, name),
+                          InkWell(
+                            onTap: () => _showDeleteServerLeagueDialog(id, name),
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.redAccent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.delete_outline, size: 14, color: Colors.redAccent),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Eliminar (Admin)',
+                                    style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ),

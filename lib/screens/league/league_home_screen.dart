@@ -29,6 +29,114 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
     super.dispose();
   }
 
+  void _showDeleteActiveLeagueDialog(League league) {
+    bool deleteOnServer = false;
+    final pinController = TextEditingController(text: league.pin);
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Dialog(
+          backgroundColor: AppColors.slate900,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppColors.slate800),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.delete_forever, color: Colors.redAccent, size: 22),
+                    SizedBox(width: 8),
+                    Text(
+                      'Eliminar Liga',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.white),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '¿Deseas eliminar la liga "${league.name}" (# ${league.id}) de este dispositivo?',
+                  style: const TextStyle(color: AppColors.slate300, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: deleteOnServer,
+                  onChanged: (val) => setModalState(() => deleteOnServer = val ?? false),
+                  title: const Text(
+                    'Eliminar también del servidor en la nube',
+                    style: TextStyle(color: AppColors.white, fontSize: 12),
+                  ),
+                  activeColor: Colors.redAccent,
+                ),
+                if (deleteOnServer) ...[
+                  TextField(
+                    controller: pinController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: AppColors.white, fontSize: 13),
+                    decoration: const InputDecoration(
+                      labelText: 'Clave/PIN para autorizar borrado',
+                      hintText: 'PIN de la liga',
+                    ),
+                  ),
+                ],
+                if (errorText != null) ...[
+                  const SizedBox(height: 8),
+                  Text(errorText!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                ],
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: const Text('Cancelar', style: TextStyle(color: AppColors.slate400)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final err = await _service.deleteLeague(
+                            league.id,
+                            pin: deleteOnServer ? pinController.text.trim() : null,
+                            deleteOnServer: deleteOnServer,
+                          );
+                          if (!ctx.mounted) return;
+                          if (err != null) {
+                            setModalState(() => errorText = err);
+                          } else {
+                            Navigator.of(ctx).pop();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Liga "${league.name}" eliminada.'),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                        child: const Text('Eliminar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showCreateLeagueDialog() {
     final nameController = TextEditingController();
     final pinController = TextEditingController(text: '1234');
@@ -294,6 +402,119 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
     );
   }
 
+  void _showDeleteActiveLeagueDialog(League league) {
+    bool deleteOnServer = true;
+    final pinController = TextEditingController(text: league.pin);
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Dialog(
+          backgroundColor: AppColors.slate900,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppColors.slate800),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.delete_forever, color: Colors.redAccent, size: 24),
+                    SizedBox(width: 8),
+                    Text(
+                      'Eliminar Liga Activa',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.white),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '¿Deseas eliminar "${league.name}" (ID: ${league.id})?',
+                  style: const TextStyle(color: AppColors.slate200, fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Esta acción removerá la liga de tu dispositivo y opcionalmente del servidor si eres administrador.',
+                  style: TextStyle(color: AppColors.slate400, fontSize: 11),
+                ),
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: deleteOnServer,
+                  onChanged: (val) => setModalState(() => deleteOnServer = val ?? false),
+                  title: const Text(
+                    'Eliminar también del servidor en la nube',
+                    style: TextStyle(color: AppColors.white, fontSize: 12),
+                  ),
+                  activeColor: Colors.redAccent,
+                ),
+                if (deleteOnServer) ...[
+                  TextField(
+                    controller: pinController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: AppColors.white, fontSize: 13),
+                    decoration: const InputDecoration(
+                      labelText: 'Clave/PIN para confirmar',
+                      hintText: 'PIN de la liga',
+                    ),
+                  ),
+                ],
+                if (errorText != null) ...[
+                  const SizedBox(height: 8),
+                  Text(errorText!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                ],
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: const Text('Cancelar', style: TextStyle(color: AppColors.slate400)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final err = await _service.deleteLeague(
+                            league.id,
+                            pin: deleteOnServer ? pinController.text.trim() : null,
+                            deleteOnServer: deleteOnServer,
+                          );
+                          if (!ctx.mounted) return;
+                          if (err != null) {
+                            setModalState(() => errorText = err);
+                          } else {
+                            Navigator.of(ctx).pop();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Liga "${league.name}" eliminada.'),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                        child: const Text('Eliminar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -335,6 +556,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                   }
                   if (val == 'create') _showCreateLeagueDialog();
                   if (val == 'join') _showJoinLeagueDialog();
+                  if (val == 'delete' && active != null) _showDeleteActiveLeagueDialog(active);
                 },
                 itemBuilder: (ctx) => [
                   const PopupMenuItem(
@@ -367,6 +589,17 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                       ],
                     ),
                   ),
+                  if (active != null)
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_forever, size: 18, color: Colors.redAccent),
+                          SizedBox(width: 8),
+                          Text('Eliminar esta liga', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ],
@@ -503,27 +736,58 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                   ),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.amber950.withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.amber600.withValues(alpha: 0.5)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.key, size: 12, color: AppColors.amber300),
-                    const SizedBox(width: 4),
-                    Text(
-                      'PIN: ${league.pin}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.amber300,
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.amber950.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.amber600.withValues(alpha: 0.5)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.key, size: 12, color: AppColors.amber300),
+                        const SizedBox(width: 4),
+                        Text(
+                          'PIN: ${league.pin}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.amber300,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () => _showDeleteActiveLeagueDialog(league),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.6)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.delete_outline, size: 13, color: Colors.redAccent),
+                          SizedBox(width: 4),
+                          Text(
+                            'Eliminar Liga',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.redAccent,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
