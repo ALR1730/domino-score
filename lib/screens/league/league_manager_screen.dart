@@ -810,16 +810,26 @@ class _LeagueManagerScreenState extends State<LeagueManagerScreen>
   Widget _buildServerLeaguesTab(List<League> localLeagues, String? activeId) {
     if (_isLoadingServer) {
       return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(color: AppColors.emerald400),
-            SizedBox(height: 16),
-            Text(
-              'Consultando ligas en el servidor Render...',
-              style: TextStyle(color: AppColors.slate400, fontSize: 13),
-            ),
-          ],
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppColors.emerald400),
+              SizedBox(height: 18),
+              Text(
+                'Consultando ligas en el servidor en la nube...',
+                style: TextStyle(color: AppColors.slate300, fontSize: 14, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Si el servidor estaba en reposo por inactividad, puede tomar unos segundos en reactivarse.',
+                style: TextStyle(color: AppColors.slate500, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       );
     }

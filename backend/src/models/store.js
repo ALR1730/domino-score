@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const mongo = require("../db/mongo");
 const {
   extractMembers,
   generateTeamKey,
@@ -47,7 +48,40 @@ class Store {
     }
   }
 
-  save() {
+  async loadFromMongo() {
+    if (!mongo.connected) return;
+    try {
+      const col = mongo.getCollection("leagues");
+      if (!col) return;
+      const docs = await col.find({}).toArray();
+      if (docs && docs.length > 0) {
+        console.log(`📦 Cargando ${docs.length} ligas desde MongoDB...`);
+        for (const doc of docs) {
+          const { _id, ...leagueData } = doc;
+          leagueData.id = leagueData.id || _id;
+          if (
+            leagueData.id &&
+            leagueData.id !== "LIG-CASUAL" &&
+            leagueData.id !== "LIG-SYNC-TEST" &&
+            leagueData.name !== "Liga de Prueba CI"
+          ) {
+            this.leagues.set(leagueData.id, leagueData);
+          }
+        }
+        console.log(`✅ ${this.leagues.size} ligas activas disponibles en memoria.`);
+      } else if (this.leagues.size > 0) {
+        console.log(`📤 Sembrando ${this.leagues.size} ligas existentes en MongoDB...`);
+        for (const league of this.leagues.values()) {
+          const doc = { ...league, _id: league.id, updatedAt: new Date().toISOString() };
+          await col.updateOne({ _id: league.id }, { $set: doc }, { upsert: true });
+        }
+      }
+    } catch (err) {
+      console.error("Error cargando ligas de MongoDB:", err.message);
+    }
+  }
+
+  save(targetLeague = null) {
     try {
       if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -55,7 +89,26 @@ class Store {
       const data = Array.from(this.leagues.values());
       fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
     } catch (err) {
-      console.error("Error guardando store:", err);
+      console.error("Error guardando store en disco:", err);
+    }
+
+    if (mongo.connected) {
+      const col = mongo.getCollection("leagues");
+      if (col) {
+        if (targetLeague && targetLeague.id) {
+          const doc = { ...targetLeague, _id: targetLeague.id, updatedAt: new Date().toISOString() };
+          col.updateOne({ _id: targetLeague.id }, { $set: doc }, { upsert: true }).catch((err) => {
+            console.error(`Error guardando liga ${targetLeague.id} en MongoDB:`, err.message);
+          });
+        } else {
+          for (const league of this.leagues.values()) {
+            const doc = { ...league, _id: league.id, updatedAt: new Date().toISOString() };
+            col.updateOne({ _id: league.id }, { $set: doc }, { upsert: true }).catch((err) => {
+              console.error(`Error guardando liga ${league.id} en MongoDB:`, err.message);
+            });
+          }
+        }
+      }
     }
   }
 
@@ -99,6 +152,14 @@ class Store {
     }
     this.leagues.delete(id);
     this.save();
+    if (mongo.connected) {
+      const col = mongo.getCollection("leagues");
+      if (col) {
+        col.deleteOne({ _id: id }).catch((err) => {
+          console.error(`Error eliminando liga ${id} de MongoDB:`, err.message);
+        });
+      }
+    }
     return { success: true };
   }
 

@@ -48,15 +48,32 @@ class ApiClient {
     } catch (_) {}
   }
 
-  Future<bool> isServerAvailable() async {
+  Future<bool> isServerAvailable({Duration timeout = const Duration(seconds: 45)}) async {
     try {
       final res = await http
           .get(Uri.parse('$baseUrl/health'))
-          .timeout(const Duration(seconds: 15));
+          .timeout(timeout);
       return res.statusCode == 200;
     } catch (_) {
       return false;
     }
+  }
+
+  Future<Map<String, dynamic>> checkHealth({Duration timeout = const Duration(seconds: 45)}) async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/health'))
+          .timeout(timeout);
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return {
+          'online': true,
+          'database': data['database'] ?? 'unknown',
+          'features': data['features'] ?? [],
+        };
+      }
+    } catch (_) {}
+    return {'online': false, 'database': 'none'};
   }
 
   Future<League?> createLeague({
@@ -75,7 +92,7 @@ class ApiClient {
           'pin': pin,
           'initialParticipants': initialParticipants,
         }),
-      ).timeout(const Duration(seconds: 25));
+      ).timeout(const Duration(seconds: 45));
       if (res.statusCode == 201) {
         final data = jsonDecode(res.body);
         return League.fromMap(data['league']);
@@ -92,7 +109,7 @@ class ApiClient {
         Uri.parse('$baseUrl/api/leagues/sync'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(league.toMap()),
-      ).timeout(const Duration(seconds: 25));
+      ).timeout(const Duration(seconds: 45));
       if (res.statusCode == 200 || res.statusCode == 201) {
         final data = jsonDecode(res.body);
         if (data['league'] != null) {
@@ -114,7 +131,7 @@ class ApiClient {
         Uri.parse('$baseUrl/api/leagues/join'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'nameOrId': nameOrId, 'pin': pin}),
-      ).timeout(const Duration(seconds: 25));
+      ).timeout(const Duration(seconds: 45));
       final data = jsonDecode(res.body);
       if (res.statusCode == 200 && data['success'] == true) {
         return {'success': true, 'league': League.fromMap(data['league'])};
@@ -128,7 +145,7 @@ class ApiClient {
 
   Future<League?> fetchLeague(String id) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/leagues/$id')).timeout(const Duration(seconds: 25));
+      final res = await http.get(Uri.parse('$baseUrl/api/leagues/$id')).timeout(const Duration(seconds: 45));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         return League.fromMap(data['league']);
@@ -154,7 +171,7 @@ class ApiClient {
         Uri.parse('$baseUrl/api/leagues/$leagueId/matches'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 25));
+      ).timeout(const Duration(seconds: 45));
       return res.statusCode == 201;
     } catch (e) {
       debugPrint('ApiClient.recordMatch error: $e');
@@ -164,7 +181,7 @@ class ApiClient {
 
   Future<List<TeamStats>?> fetchGlobalTeams() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/rankings/global/teams')).timeout(const Duration(seconds: 20));
+      final res = await http.get(Uri.parse('$baseUrl/api/rankings/global/teams')).timeout(const Duration(seconds: 45));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['teams'] as List<dynamic>;
@@ -178,7 +195,7 @@ class ApiClient {
 
   Future<List<PlayerStats>?> fetchGlobalPlayers() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/rankings/global/players')).timeout(const Duration(seconds: 20));
+      final res = await http.get(Uri.parse('$baseUrl/api/rankings/global/players')).timeout(const Duration(seconds: 45));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final list = data['players'] as List<dynamic>;
@@ -192,7 +209,7 @@ class ApiClient {
 
   Future<List<Map<String, dynamic>>> fetchServerLeagues() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/leagues')).timeout(const Duration(seconds: 25));
+      final res = await http.get(Uri.parse('$baseUrl/api/leagues')).timeout(const Duration(seconds: 45));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true && data['leagues'] is List) {

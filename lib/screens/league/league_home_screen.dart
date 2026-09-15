@@ -30,10 +30,14 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
       _service.syncActiveLeagueWithServer();
       _checkServerStatus();
     });
-    // Auto-sincronización periódica cada 10s para reflejar partidas de otros dispositivos
-    _autoSyncTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    // Auto-sincronización y monitoreo periódico de conexión
+    _autoSyncTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       if (mounted && !_isSyncing) {
-        _service.syncActiveLeagueWithServer();
+        if (!_isServerOnline) {
+          _checkServerStatus();
+        } else {
+          _service.syncActiveLeagueWithServer();
+        }
       }
     });
   }
@@ -43,10 +47,11 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
       final available = await ApiClient().isServerAvailable();
       if (mounted) setState(() => _isServerOnline = available);
       if (available) {
+        if (_service.allLeagues.isNotEmpty) {
+          await _service.syncAllLeaguesWithServer();
+        }
         if (_service.activeLeague != null) {
           await _service.syncActiveLeagueWithServer();
-        } else if (_service.allLeagues.isEmpty) {
-          await _service.syncAllLeaguesWithServer();
         }
       }
     } catch (_) {
@@ -511,40 +516,51 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: _isServerOnline
-                        ? AppColors.emerald500.withValues(alpha: 0.15)
-                        : AppColors.amber600.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
+                GestureDetector(
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Verificando conexión con el servidor en la nube...'),
+                        duration: Duration(milliseconds: 900),
+                      ),
+                    );
+                    _checkServerStatus();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
                       color: _isServerOnline
-                          ? AppColors.emerald500.withValues(alpha: 0.4)
-                          : AppColors.amber600.withValues(alpha: 0.4),
+                          ? AppColors.emerald500.withValues(alpha: 0.15)
+                          : AppColors.amber600.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _isServerOnline
+                            ? AppColors.emerald500.withValues(alpha: 0.4)
+                            : AppColors.amber600.withValues(alpha: 0.4),
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: _isServerOnline ? AppColors.emerald400 : AppColors.amber300,
-                          shape: BoxShape.circle,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: _isServerOnline ? AppColors.emerald400 : AppColors.amber300,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        _isServerOnline ? 'Servidor OK' : 'Conectando...',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          color: _isServerOnline ? AppColors.emerald300 : AppColors.amber300,
+                        const SizedBox(width: 4),
+                        Text(
+                          _isServerOnline ? 'Servidor OK' : 'Conectando...',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: _isServerOnline ? AppColors.emerald300 : AppColors.amber300,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],

@@ -8,11 +8,19 @@
     "dev": "node --watch src/server.js",
     "test": "node test/api.test.js"
   },
-  "keywords": ["domino", "score", "league", "flutter", "rest-api"],
+  "keywords": [
+    "domino",
+    "score",
+    "league",
+    "flutter",
+    "rest-api"
+  ],
   "author": "ALR1730",
   "license": "MIT",
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.21.2"
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "mongodb": "^7.6.0"
   }
 }

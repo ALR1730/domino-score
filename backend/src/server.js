@@ -1,5 +1,8 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const mongo = require("./db/mongo");
+const store = require("./models/store");
 const leaguesRouter = require("./routes/leagues");
 const rankingsRouter = require("./routes/rankings");
 
@@ -15,8 +18,9 @@ app.get("/health", (req, res) => {
   res.json({
     status: "ok",
     service: "domino-score-backend",
-    version: "1.1.0",
-    features: ["delete-league", "global-rankings", "match-history"],
+    version: "1.2.0",
+    database: mongo.connected ? "mongodb" : "local_storage",
+    features: ["delete-league", "global-rankings", "match-history", "mongodb-persistence"],
     timestamp: new Date().toISOString(),
   });
 });
@@ -30,8 +34,16 @@ app.use((req, res) => {
   res.status(404).json({ success: false, error: "Endpoint no encontrado" });
 });
 
-// Iniciar servidor solo si no es importado en tests
-if (require.main === module) {
+// Inicialización de base de datos y servidor
+async function startServer() {
+  if (process.env.MONGODB_URI) {
+    console.log("🔄 Conectando a MongoDB...");
+    const connected = await mongo.connect();
+    if (connected) {
+      await store.loadFromMongo();
+    }
+  }
+
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Dominó Score Backend escuchando en http://0.0.0.0:${PORT}`);
     console.log(`📋 Healthcheck: http://localhost:${PORT}/health`);
@@ -39,4 +51,12 @@ if (require.main === module) {
   });
 }
 
+// Iniciar servidor solo si no es importado en tests
+if (require.main === module) {
+  startServer().catch((err) => {
+    console.error("Error al iniciar el servidor:", err);
+  });
+}
+
 module.exports = app;
+

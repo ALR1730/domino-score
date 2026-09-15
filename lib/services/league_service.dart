@@ -58,14 +58,14 @@ class LeagueService extends ChangeNotifier {
       league.players.putIfAbsent(key, () => PlayerStats(key: key, name: p));
     }
 
-    // Intentar registrar en el servidor REST primero con timeout corto (4s)
+    // Intentar registrar en el servidor REST con timeout resiliente
     try {
       final serverLeague = await ApiClient().createLeague(
         id: league.id,
         name: league.name,
         pin: league.pin,
         initialParticipants: initialParticipants,
-      ).timeout(const Duration(seconds: 4));
+      );
 
       if (serverLeague != null) {
         league = serverLeague;
