@@ -1,1 +1,21 @@
-[]
+[
+  {
+    "id": "LIG-9876",
+    "name": "EL MUNDO DE JULITO",
+    "pin": "9876",
+    "createdAt": "2026-09-15T20:20:00.000Z",
+    "participants": [
+      "Julito"
+    ],
+    "teams": {},
+    "players": {
+      "julito": {
+        "key": "julito",
+        "name": "Julito",
+        "wins": 0,
+        "matchesPlayed": 0
+      }
+    },
+    "matches": []
+  }
+]
