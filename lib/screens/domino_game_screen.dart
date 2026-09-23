@@ -44,10 +44,21 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
   }
 
   void _checkLeagueMatchEnd() {
+    // Verificar que el estado esté completamente cargado antes de evaluar
+    // fin de partida. Esto evita que el listener se dispare durante la
+    // inicialización asíncrona del GameState con datos desactualizados.
+    if (!widget.gameState.isLoaded) return;
+
     if (widget.isLeagueMode &&
         widget.gameState.isGameOver &&
         !_leagueMatchRecorded &&
         widget.leagueId != null) {
+      // Seguridad extra: no registrar partidas con puntaje total 0
+      // (indicaría que el listener se disparó antes de que hubiera rondas reales)
+      final score1 = widget.gameState.totalE1;
+      final score2 = widget.gameState.totalE2;
+      if (score1 <= 0 && score2 <= 0) return;
+
       _leagueMatchRecorded = true;
 
       final match = LeagueMatch(
@@ -57,12 +68,37 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
         team2DisplayName: widget.gameState.nombreE2,
         team1Members: widget.team1Members ?? [widget.gameState.nombreE1],
         team2Members: widget.team2Members ?? [widget.gameState.nombreE2],
-        score1: widget.gameState.totalE1,
-        score2: widget.gameState.totalE2,
+        score1: score1,
+        score2: score2,
         winnerTeam: widget.gameState.ganador,
       );
 
       LeagueService().recordMatchForActiveLeague(match);
+
+      // Mostrar confirmación visual al usuario
+      if (mounted) {
+        final winnerName = widget.gameState.ganador == 1
+            ? widget.gameState.nombreE1
+            : widget.gameState.nombreE2;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.emoji_events, color: Colors.amber, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '🏆 ¡$winnerName gana! Partida registrada en la liga.',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF065F46),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 

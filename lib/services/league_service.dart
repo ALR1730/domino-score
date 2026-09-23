@@ -20,6 +20,7 @@ class LeagueService extends ChangeNotifier {
   final Map<String, League> _leagues = {};
   String? _activeLeagueId;
   bool _isLoaded = false;
+  bool _isSyncingServer = false; // Semáforo: evita syncs concurrentes con el servidor
 
   bool get isLoaded => _isLoaded;
   List<League> get allLeagues => _leagues.values.toList();
@@ -176,38 +177,76 @@ class LeagueService extends ChangeNotifier {
   Future<void> recordMatchForActiveLeague(LeagueMatch match) async {
     final league = activeLeague;
     if (league == null) return;
+
+    // 1. Guardar la partida localmente PRIMERO (operación síncrona en memoria)
     league.recordMatch(match);
+
+    // 2. Persistir en SharedPreferences inmediatamente
     await _saveData();
     notifyListeners();
 
-    // Sincronizar inmediatamente con el servidor REST
-    _syncLeagueWithServer(league, match);
+    // 3. Sincronizar con servidor en background (nunca bloquea ni sobreescribe datos locales)
+    _syncMatchToServer(league, match);
   }
 
-  Future<bool> _syncLeagueWithServer(League league, [LeagueMatch? newMatch]) async {
+  /// Envía la partida al servidor en background. No bloquea ni reemplaza datos locales.
+  Future<void> _syncMatchToServer(League league, LeagueMatch match) async {
+    if (_isSyncingServer) return; // Ya hay un sync en curso
+    _isSyncingServer = true;
     try {
-      if (newMatch != null) {
-        await ApiClient().recordMatch(
-          leagueId: league.id,
-          match: newMatch,
-          leagueName: league.name,
-          pin: league.pin,
-        );
-      }
+      await ApiClient().recordMatch(
+        leagueId: league.id,
+        match: match,
+        leagueName: league.name,
+        pin: league.pin,
+      );
+    } catch (e) {
+      debugPrint('Error enviando partida al servidor: $e');
+    } finally {
+      _isSyncingServer = false;
+    }
+  }
 
-      League? updated = await ApiClient().syncLeague(league);
-      updated ??= await ApiClient().fetchLeague(league.id);
+  /// Sincroniza la liga con el servidor usando merge inteligente.
+  /// NUNCA sobreescribe datos locales con datos más antiguos del servidor.
+  Future<bool> _syncLeagueWithServer(League? league) async {
+    if (league == null) return false;
+    if (_isSyncingServer) {
+      debugPrint('Sync omitido: ya hay una sincronización en curso.');
+      return false;
+    }
+    _isSyncingServer = true;
+    try {
+      League? serverLeague = await ApiClient().syncLeague(league);
+      serverLeague ??= await ApiClient().fetchLeague(league.id);
 
-      if (updated != null) {
-        _leagues[league.id] = updated;
-        await _saveData();
-        notifyListeners();
+      if (serverLeague != null) {
+        // Merge inteligente: el servidor NUNCA puede eliminar partidas locales.
+        // Solo agregamos partidas que están en el servidor pero no en local.
+        final localMatchIds = league.matches.map((m) => m.id).toSet();
+        bool mergedAny = false;
+        for (final serverMatch in serverLeague.matches) {
+          if (!localMatchIds.contains(serverMatch.id)) {
+            // Insertar al inicio (más reciente primero) SIN llamar recordMatch()
+            // para no duplicar estadísticas — la lista de matches es suficiente.
+            league.matches.insert(0, serverMatch);
+            mergedAny = true;
+          }
+        }
+        // Actualizar la referencia local preservando los datos locales
+        _leagues[league.id] = league;
+        if (mergedAny) {
+          await _saveData();
+          notifyListeners();
+        }
         return true;
       }
       return false;
     } catch (e) {
-      debugPrint('Error syncing league to server: $e');
+      debugPrint('Error en sync con servidor: $e');
       return false;
+    } finally {
+      _isSyncingServer = false;
     }
   }
 
@@ -219,9 +258,19 @@ class LeagueService extends ChangeNotifier {
 
   Future<void> syncAllLeaguesWithServer() async {
     for (final league in _leagues.values) {
-      final updated = await ApiClient().syncLeague(league);
-      if (updated != null) {
-        _leagues[league.id] = updated;
+      if (_isSyncingServer) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      final serverLeague = await ApiClient().syncLeague(league);
+      if (serverLeague != null) {
+        // Merge: solo agregar partidas del servidor que no estén en local
+        final localIds = league.matches.map((m) => m.id).toSet();
+        for (final sm in serverLeague.matches) {
+          if (!localIds.contains(sm.id)) {
+            league.matches.add(sm);
+          }
+        }
+        _leagues[league.id] = league;
       }
     }
     await _saveData();

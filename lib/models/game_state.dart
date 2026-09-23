@@ -20,6 +20,7 @@ class GameState extends ChangeNotifier {
     String? initialNombreE2,
     int? initialMetaPuntos,
     this.isLeagueMode = false,
+    bool skipLoadFromPrefs = false,
   }) {
     if (initialNombreE1 != null && initialNombreE1.trim().isNotEmpty) {
       _nombreE1 = initialNombreE1.trim();
@@ -37,7 +38,13 @@ class GameState extends ChangeNotifier {
       _metaPuntos = initialMetaPuntos;
     }
 
-    _loadFromPrefs(preserveCustomNames: initialNombreE1 != null || initialNombreE2 != null);
+    if (skipLoadFromPrefs) {
+      // Partidas de liga: no cargar estado previo de prefs para evitar
+      // race conditions donde rondas de otra partida interfieren con el registro.
+      _isLoaded = true;
+    } else {
+      _loadFromPrefs(preserveCustomNames: initialNombreE1 != null || initialNombreE2 != null);
+    }
   }
 
   factory GameState.casual() {
@@ -61,6 +68,9 @@ class GameState extends ChangeNotifier {
       initialNombreE2: team2Name,
       initialMetaPuntos: metaPuntos,
       isLeagueMode: true,
+      // Partidas de liga siempre empiezan desde cero – nunca cargar
+      // estado antiguo de SharedPreferences para evitar race conditions.
+      skipLoadFromPrefs: true,
     );
   }
 
