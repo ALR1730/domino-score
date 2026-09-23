@@ -34,6 +34,8 @@ class AppColors {
   static const Color rose950 = Color(0xFF4C0519);
 
   static const Color amber300 = Color(0xFFFCD34D);
+  static const Color amber400 = Color(0xFFFBBF24);
+  static const Color amber500 = Color(0xFFF59E0B);
   static const Color amber600 = Color(0xFFD97706);
   static const Color amber950 = Color(0xFF451A03);
 }

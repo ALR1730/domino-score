@@ -99,6 +99,97 @@ class League {
     return list;
   }
 
+  List<DateTime> getAvailableMonths() {
+    final set = <String, DateTime>{};
+    for (final m in matches) {
+      final key = '${m.date.year}-${m.date.month.toString().padLeft(2, '0')}';
+      if (!set.containsKey(key)) {
+        set[key] = DateTime(m.date.year, m.date.month);
+      }
+    }
+    final list = set.values.toList();
+    list.sort((a, b) => b.compareTo(a));
+    return list;
+  }
+
+  List<TeamStats> getTeamsRankedForMonth({int? year, int? month}) {
+    if (year == null || month == null) {
+      return teamsRanked;
+    }
+    final filtered = matches.where((m) => m.date.year == year && m.date.month == month);
+    final Map<String, TeamStats> monthTeams = {};
+
+    for (final m in filtered) {
+      final key1 = NameParser.generateTeamKey(m.team1Members);
+      final t1 = monthTeams.putIfAbsent(
+        key1,
+        () => TeamStats(
+          key: key1,
+          displayName: m.team1DisplayName,
+          members: List.from(m.team1Members),
+        ),
+      );
+      t1.matchesPlayed += 1;
+      t1.totalPoints += m.score1;
+      if (m.winnerTeam == 1) t1.wins += 1;
+
+      final key2 = NameParser.generateTeamKey(m.team2Members);
+      final t2 = monthTeams.putIfAbsent(
+        key2,
+        () => TeamStats(
+          key: key2,
+          displayName: m.team2DisplayName,
+          members: List.from(m.team2Members),
+        ),
+      );
+      t2.matchesPlayed += 1;
+      t2.totalPoints += m.score2;
+      if (m.winnerTeam == 2) t2.wins += 1;
+    }
+
+    final list = monthTeams.values.toList();
+    list.sort((a, b) {
+      final winsCmp = b.wins.compareTo(a.wins);
+      if (winsCmp != 0) return winsCmp;
+      final rateCmp = b.winRate.compareTo(a.winRate);
+      if (rateCmp != 0) return rateCmp;
+      return b.totalPoints.compareTo(a.totalPoints);
+    });
+    return list;
+  }
+
+  List<PlayerStats> getPlayersRankedForMonth({int? year, int? month}) {
+    if (year == null || month == null) {
+      return playersRanked;
+    }
+    final filtered = matches.where((m) => m.date.year == year && m.date.month == month);
+    final Map<String, PlayerStats> monthPlayers = {};
+
+    for (final m in filtered) {
+      for (final name in m.team1Members) {
+        final key = NameParser.removeDiacritics(name.trim().toLowerCase());
+        final p = monthPlayers.putIfAbsent(key, () => PlayerStats(key: key, name: name));
+        p.matchesPlayed += 1;
+        if (m.winnerTeam == 1) p.wins += 1;
+      }
+
+      for (final name in m.team2Members) {
+        final key = NameParser.removeDiacritics(name.trim().toLowerCase());
+        final p = monthPlayers.putIfAbsent(key, () => PlayerStats(key: key, name: name));
+        p.matchesPlayed += 1;
+        if (m.winnerTeam == 2) p.wins += 1;
+      }
+    }
+
+    final list = monthPlayers.values.toList();
+    list.sort((a, b) {
+      final winsCmp = b.wins.compareTo(a.wins);
+      if (winsCmp != 0) return winsCmp;
+      return b.winRate.compareTo(a.winRate);
+    });
+    return list;
+  }
+
   void addParticipant(String name) {
     final clean = name.trim();
     if (clean.isEmpty) return;

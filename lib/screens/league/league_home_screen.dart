@@ -4,6 +4,7 @@ import '../../models/league.dart';
 import '../../services/api_client.dart';
 import '../../services/league_service.dart';
 import '../../theme/app_colors.dart';
+import 'global_ranking_screen.dart';
 import 'league_manager_screen.dart';
 import 'match_setup_screen.dart';
 
@@ -920,6 +921,59 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
             ],
           ),
           const SizedBox(height: 8),
+          InkWell(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => GlobalRankingScreen(
+                    leagueId: league.id,
+                    leagueName: league.name,
+                  ),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.emerald600.withValues(alpha: 0.2),
+                    AppColors.slate900,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.emerald500.withValues(alpha: 0.35)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.calendar_month, color: AppColors.emerald400, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Ver Ranking Mensual Dinámico',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.white,
+                          ),
+                        ),
+                        Text(
+                          'Filtra por mes/año, podio y clasificaciones por parejas e individual',
+                          style: TextStyle(fontSize: 10, color: AppColors.slate400),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: AppColors.emerald400, size: 20),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           if (teams.isEmpty)
             Container(
               padding: const EdgeInsets.all(16),
