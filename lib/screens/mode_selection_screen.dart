@@ -128,9 +128,9 @@ class ModeSelectionScreen extends StatelessWidget {
                         ),
                       );
                     },
-                    icon: const Icon(Icons.emoji_events_outlined, size: 18, color: AppColors.amber400),
+                    icon: const Icon(Icons.public, size: 18, color: AppColors.emerald400),
                     label: const Text(
-                      'Ver Ranking Mensual y General del Servidor',
+                      'Ver Ranking General del Servidor',
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.slate200),
                     ),
                     style: OutlinedButton.styleFrom(
