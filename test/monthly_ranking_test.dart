@@ -89,5 +89,37 @@ void main() {
     final allTeams = league.getTeamsRankedForMonth();
     expect(allTeams.firstWhere((t) => t.displayName == 'Pedro & Luis').wins, 2);
     expect(allTeams.firstWhere((t) => t.displayName == 'Carlos & Juan').wins, 1);
+
+    // 6. Histórico Total cuando teams/players están vacíos (ej. tras sincronización del servidor)
+    final syncedLeague = League(
+      id: 'LIG-SYNC',
+      name: 'Liga Sincronizada',
+      pin: '1234',
+      createdAt: DateTime(2026, 8, 1),
+      teams: {},
+      players: {},
+      matches: [
+        LeagueMatch(
+          id: 'm-sync-1',
+          date: DateTime(2026, 9, 1),
+          team1DisplayName: 'Alvaro & Roberto',
+          team2DisplayName: 'Luis & Manuel',
+          team1Members: ['Alvaro', 'Roberto'],
+          team2Members: ['Luis', 'Manuel'],
+          score1: 200,
+          score2: 120,
+          winnerTeam: 1,
+        ),
+      ],
+    );
+    final historicalTeams = syncedLeague.getTeamsRankedForMonth();
+    expect(historicalTeams.length, 2);
+    expect(historicalTeams.first.displayName, 'Alvaro & Roberto');
+    expect(historicalTeams.first.wins, 1);
+    expect(historicalTeams.first.totalPoints, 200);
+
+    final historicalPlayers = syncedLeague.getPlayersRankedForMonth();
+    expect(historicalPlayers.length, 4);
+    expect(historicalPlayers.firstWhere((p) => p.name == 'Alvaro').wins, 1);
   });
 }

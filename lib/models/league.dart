@@ -77,27 +77,9 @@ class League {
         players = players ?? {},
         matches = matches ?? [];
 
-  List<TeamStats> get teamsRanked {
-    final list = teams.values.toList();
-    list.sort((a, b) {
-      final winsCmp = b.wins.compareTo(a.wins);
-      if (winsCmp != 0) return winsCmp;
-      final rateCmp = b.winRate.compareTo(a.winRate);
-      if (rateCmp != 0) return rateCmp;
-      return b.totalPoints.compareTo(a.totalPoints);
-    });
-    return list;
-  }
+  List<TeamStats> get teamsRanked => getTeamsRankedForMonth();
 
-  List<PlayerStats> get playersRanked {
-    final list = players.values.toList();
-    list.sort((a, b) {
-      final winsCmp = b.wins.compareTo(a.wins);
-      if (winsCmp != 0) return winsCmp;
-      return b.winRate.compareTo(a.winRate);
-    });
-    return list;
-  }
+  List<PlayerStats> get playersRanked => getPlayersRankedForMonth();
 
   List<DateTime> getAvailableMonths() {
     final set = <String, DateTime>{};
@@ -113,10 +95,9 @@ class League {
   }
 
   List<TeamStats> getTeamsRankedForMonth({int? year, int? month}) {
-    if (year == null || month == null) {
-      return teamsRanked;
-    }
-    final filtered = matches.where((m) => m.date.year == year && m.date.month == month);
+    final filtered = (year == null || month == null)
+        ? matches
+        : matches.where((m) => m.date.year == year && m.date.month == month);
     final Map<String, TeamStats> monthTeams = {};
 
     for (final m in filtered) {
@@ -147,6 +128,18 @@ class League {
       if (m.winnerTeam == 2) t2.wins += 1;
     }
 
+    if (monthTeams.isEmpty && (year == null || month == null)) {
+      final fallback = teams.values.toList();
+      fallback.sort((a, b) {
+        final winsCmp = b.wins.compareTo(a.wins);
+        if (winsCmp != 0) return winsCmp;
+        final rateCmp = b.winRate.compareTo(a.winRate);
+        if (rateCmp != 0) return rateCmp;
+        return b.totalPoints.compareTo(a.totalPoints);
+      });
+      return fallback;
+    }
+
     final list = monthTeams.values.toList();
     list.sort((a, b) {
       final winsCmp = b.wins.compareTo(a.wins);
@@ -159,10 +152,9 @@ class League {
   }
 
   List<PlayerStats> getPlayersRankedForMonth({int? year, int? month}) {
-    if (year == null || month == null) {
-      return playersRanked;
-    }
-    final filtered = matches.where((m) => m.date.year == year && m.date.month == month);
+    final filtered = (year == null || month == null)
+        ? matches
+        : matches.where((m) => m.date.year == year && m.date.month == month);
     final Map<String, PlayerStats> monthPlayers = {};
 
     for (final m in filtered) {
@@ -179,6 +171,16 @@ class League {
         p.matchesPlayed += 1;
         if (m.winnerTeam == 2) p.wins += 1;
       }
+    }
+
+    if (monthPlayers.isEmpty && (year == null || month == null)) {
+      final fallback = players.values.toList();
+      fallback.sort((a, b) {
+        final winsCmp = b.wins.compareTo(a.wins);
+        if (winsCmp != 0) return winsCmp;
+        return b.winRate.compareTo(a.winRate);
+      });
+      return fallback;
     }
 
     final list = monthPlayers.values.toList();

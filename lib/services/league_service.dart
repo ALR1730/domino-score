@@ -301,10 +301,42 @@ class LeagueService extends ChangeNotifier {
   }
 
   List<TeamStats> getGlobalTeamsRanked({int? year, int? month}) {
-    if (year == null || month == null) {
-      final Map<String, TeamStats> aggregate = {};
+    final Map<String, TeamStats> aggregate = {};
 
-      for (final league in _leagues.values) {
+    for (final league in _leagues.values) {
+      final filtered = (year == null || month == null)
+          ? league.matches
+          : league.matches.where((m) => m.date.year == year && m.date.month == month);
+
+      if (filtered.isNotEmpty) {
+        for (final m in filtered) {
+          final key1 = NameParser.generateTeamKey(m.team1Members);
+          final t1 = aggregate.putIfAbsent(
+            key1,
+            () => TeamStats(
+              key: key1,
+              displayName: m.team1DisplayName,
+              members: List.from(m.team1Members),
+            ),
+          );
+          t1.matchesPlayed += 1;
+          t1.totalPoints += m.score1;
+          if (m.winnerTeam == 1) t1.wins += 1;
+
+          final key2 = NameParser.generateTeamKey(m.team2Members);
+          final t2 = aggregate.putIfAbsent(
+            key2,
+            () => TeamStats(
+              key: key2,
+              displayName: m.team2DisplayName,
+              members: List.from(m.team2Members),
+            ),
+          );
+          t2.matchesPlayed += 1;
+          t2.totalPoints += m.score2;
+          if (m.winnerTeam == 2) t2.wins += 1;
+        }
+      } else if (year == null || month == null) {
         for (final team in league.teams.values) {
           final existing = aggregate[team.key];
           if (existing == null) {
@@ -323,49 +355,6 @@ class LeagueService extends ChangeNotifier {
           }
         }
       }
-
-      final list = aggregate.values.toList();
-      list.sort((a, b) {
-        final winsCmp = b.wins.compareTo(a.wins);
-        if (winsCmp != 0) return winsCmp;
-        final rateCmp = b.winRate.compareTo(a.winRate);
-        if (rateCmp != 0) return rateCmp;
-        return b.totalPoints.compareTo(a.totalPoints);
-      });
-      return list;
-    }
-
-    // Cálculo dinámico por mes
-    final Map<String, TeamStats> aggregate = {};
-    for (final league in _leagues.values) {
-      final filtered = league.matches.where((m) => m.date.year == year && m.date.month == month);
-      for (final m in filtered) {
-        final key1 = NameParser.generateTeamKey(m.team1Members);
-        final t1 = aggregate.putIfAbsent(
-          key1,
-          () => TeamStats(
-            key: key1,
-            displayName: m.team1DisplayName,
-            members: List.from(m.team1Members),
-          ),
-        );
-        t1.matchesPlayed += 1;
-        t1.totalPoints += m.score1;
-        if (m.winnerTeam == 1) t1.wins += 1;
-
-        final key2 = NameParser.generateTeamKey(m.team2Members);
-        final t2 = aggregate.putIfAbsent(
-          key2,
-          () => TeamStats(
-            key: key2,
-            displayName: m.team2DisplayName,
-            members: List.from(m.team2Members),
-          ),
-        );
-        t2.matchesPlayed += 1;
-        t2.totalPoints += m.score2;
-        if (m.winnerTeam == 2) t2.wins += 1;
-      }
     }
 
     final list = aggregate.values.toList();
@@ -380,10 +369,30 @@ class LeagueService extends ChangeNotifier {
   }
 
   List<PlayerStats> getGlobalPlayersRanked({int? year, int? month}) {
-    if (year == null || month == null) {
-      final Map<String, PlayerStats> aggregate = {};
+    final Map<String, PlayerStats> aggregate = {};
 
-      for (final league in _leagues.values) {
+    for (final league in _leagues.values) {
+      final filtered = (year == null || month == null)
+          ? league.matches
+          : league.matches.where((m) => m.date.year == year && m.date.month == month);
+
+      if (filtered.isNotEmpty) {
+        for (final m in filtered) {
+          for (final name in m.team1Members) {
+            final key = NameParser.removeDiacritics(name.trim().toLowerCase());
+            final p = aggregate.putIfAbsent(key, () => PlayerStats(key: key, name: name));
+            p.matchesPlayed += 1;
+            if (m.winnerTeam == 1) p.wins += 1;
+          }
+
+          for (final name in m.team2Members) {
+            final key = NameParser.removeDiacritics(name.trim().toLowerCase());
+            final p = aggregate.putIfAbsent(key, () => PlayerStats(key: key, name: name));
+            p.matchesPlayed += 1;
+            if (m.winnerTeam == 2) p.wins += 1;
+          }
+        }
+      } else if (year == null || month == null) {
         for (final player in league.players.values) {
           final existing = aggregate[player.key];
           if (existing == null) {
@@ -397,35 +406,6 @@ class LeagueService extends ChangeNotifier {
             existing.wins += player.wins;
             existing.matchesPlayed += player.matchesPlayed;
           }
-        }
-      }
-
-      final list = aggregate.values.toList();
-      list.sort((a, b) {
-        final winsCmp = b.wins.compareTo(a.wins);
-        if (winsCmp != 0) return winsCmp;
-        return b.winRate.compareTo(a.winRate);
-      });
-      return list;
-    }
-
-    // Cálculo dinámico por mes
-    final Map<String, PlayerStats> aggregate = {};
-    for (final league in _leagues.values) {
-      final filtered = league.matches.where((m) => m.date.year == year && m.date.month == month);
-      for (final m in filtered) {
-        for (final name in m.team1Members) {
-          final key = NameParser.removeDiacritics(name.trim().toLowerCase());
-          final p = aggregate.putIfAbsent(key, () => PlayerStats(key: key, name: name));
-          p.matchesPlayed += 1;
-          if (m.winnerTeam == 1) p.wins += 1;
-        }
-
-        for (final name in m.team2Members) {
-          final key = NameParser.removeDiacritics(name.trim().toLowerCase());
-          final p = aggregate.putIfAbsent(key, () => PlayerStats(key: key, name: name));
-          p.matchesPlayed += 1;
-          if (m.winnerTeam == 2) p.wins += 1;
         }
       }
     }

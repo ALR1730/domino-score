@@ -410,31 +410,14 @@ class Store {
     for (const league of this.leagues.values()) {
       if (league.id === "LIG-CASUAL") continue;
 
-      if (!isMonthly) {
-        for (const team of Object.values(league.teams || {})) {
-          if (!aggregate.has(team.key)) {
-            aggregate.set(team.key, {
-              key: team.key,
-              displayName: team.displayName,
-              members: [...team.members],
-              wins: team.wins,
-              matchesPlayed: team.matchesPlayed,
-              totalPoints: team.totalPoints,
-            });
-          } else {
-            const existing = aggregate.get(team.key);
-            existing.wins += team.wins;
-            existing.matchesPlayed += team.matchesPlayed;
-            existing.totalPoints += team.totalPoints;
-          }
-        }
-      } else {
-        const matches = (league.matches || []).filter((m) => {
-          if (!m.date) return false;
-          const d = new Date(m.date);
-          return d.getFullYear() === Number(year) && d.getMonth() + 1 === Number(month);
-        });
+      const matches = (league.matches || []).filter((m) => {
+        if (!m.date) return false;
+        if (!isMonthly) return true;
+        const d = new Date(m.date);
+        return d.getFullYear() === Number(year) && d.getMonth() + 1 === Number(month);
+      });
 
+      if (matches.length > 0) {
         for (const m of matches) {
           const t1Members = Array.isArray(m.team1Members)
             ? m.team1Members
@@ -474,6 +457,24 @@ class Store {
           t2.totalPoints += Number(m.score2 || 0);
           if (m.winnerTeam === 2) t2.wins += 1;
         }
+      } else if (!isMonthly) {
+        for (const team of Object.values(league.teams || {})) {
+          if (!aggregate.has(team.key)) {
+            aggregate.set(team.key, {
+              key: team.key,
+              displayName: team.displayName,
+              members: [...team.members],
+              wins: team.wins,
+              matchesPlayed: team.matchesPlayed,
+              totalPoints: team.totalPoints,
+            });
+          } else {
+            const existing = aggregate.get(team.key);
+            existing.wins += team.wins;
+            existing.matchesPlayed += team.matchesPlayed;
+            existing.totalPoints += team.totalPoints;
+          }
+        }
       }
     }
 
@@ -499,28 +500,14 @@ class Store {
     for (const league of this.leagues.values()) {
       if (league.id === "LIG-CASUAL") continue;
 
-      if (!isMonthly) {
-        for (const player of Object.values(league.players || {})) {
-          if (!aggregate.has(player.key)) {
-            aggregate.set(player.key, {
-              key: player.key,
-              name: player.name,
-              wins: player.wins,
-              matchesPlayed: player.matchesPlayed,
-            });
-          } else {
-            const existing = aggregate.get(player.key);
-            existing.wins += player.wins;
-            existing.matchesPlayed += player.matchesPlayed;
-          }
-        }
-      } else {
-        const matches = (league.matches || []).filter((m) => {
-          if (!m.date) return false;
-          const d = new Date(m.date);
-          return d.getFullYear() === Number(year) && d.getMonth() + 1 === Number(month);
-        });
+      const matches = (league.matches || []).filter((m) => {
+        if (!m.date) return false;
+        if (!isMonthly) return true;
+        const d = new Date(m.date);
+        return d.getFullYear() === Number(year) && d.getMonth() + 1 === Number(month);
+      });
 
+      if (matches.length > 0) {
         for (const m of matches) {
           const t1Members = Array.isArray(m.team1Members)
             ? m.team1Members
@@ -546,6 +533,21 @@ class Store {
             const p = aggregate.get(key);
             p.matchesPlayed += 1;
             if (m.winnerTeam === 2) p.wins += 1;
+          }
+        }
+      } else if (!isMonthly) {
+        for (const player of Object.values(league.players || {})) {
+          if (!aggregate.has(player.key)) {
+            aggregate.set(player.key, {
+              key: player.key,
+              name: player.name,
+              wins: player.wins,
+              matchesPlayed: player.matchesPlayed,
+            });
+          } else {
+            const existing = aggregate.get(player.key);
+            existing.wins += player.wins;
+            existing.matchesPlayed += player.matchesPlayed;
           }
         }
       }
