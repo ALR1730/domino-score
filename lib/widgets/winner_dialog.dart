@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/game_state.dart';
 import '../screens/leaderboard_screen.dart';
+import '../screens/league/global_ranking_screen.dart';
+import '../services/league_service.dart';
 import '../theme/app_colors.dart';
 
 class WinnerDialog extends StatelessWidget {
@@ -222,14 +224,26 @@ class WinnerDialog extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: () {
                     Navigator.of(context).pop();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (ctx) => const LeaderboardScreen()),
-                    );
+                    if (gameState.isLeagueMode) {
+                      final activeLeague = LeagueService().activeLeague;
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (ctx) => GlobalRankingScreen(
+                            leagueId: activeLeague?.id,
+                            leagueName: activeLeague?.name,
+                          ),
+                        ),
+                      );
+                    } else {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (ctx) => const LeaderboardScreen()),
+                      );
+                    }
                   },
                   icon: const Icon(Icons.emoji_events, size: 16, color: AppColors.amber300),
-                  label: const Text(
-                    'Ver Tabla de Clasificación',
-                    style: TextStyle(
+                  label: Text(
+                    gameState.isLeagueMode ? 'Ver Clasificación de la Liga' : 'Ver Tabla de Clasificación',
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppColors.slate100,

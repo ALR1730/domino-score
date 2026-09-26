@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/leaderboard_entry.dart';
 import '../models/league.dart';
-
 import 'api_client.dart';
+import 'leaderboard_service.dart';
 
 class LeagueService extends ChangeNotifier {
   static final LeagueService _instance = LeagueService._internal();
@@ -176,36 +176,59 @@ class LeagueService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> recordMatchForActiveLeague(LeagueMatch match) async {
-    final league = activeLeague;
-    if (league == null) return;
+  Future<void> recordMatchForLeague(String leagueId, LeagueMatch match) async {
+    League? league = getLeague(leagueId);
+    if (league == null && _activeLeagueId == leagueId) {
+      league = activeLeague;
+    }
+    league ??= activeLeague;
+    if (league == null) {
+      debugPrint('No se encontró la liga "$leagueId" para registrar la partida.');
+      return;
+    }
 
-    // 1. Guardar la partida localmente PRIMERO (operación síncrona en memoria)
+    _activeLeagueId = league.id;
+
+    // 1. Guardar la partida localmente en la liga PRIMERO
     league.recordMatch(match);
 
-    // 2. Persistir en SharedPreferences inmediatamente
+    // 2. Sincronizar también con LeaderboardService para mantener actualizadas las tablas globales locales
+    LeaderboardService().recordMatch(
+      rawTeam1: match.team1DisplayName,
+      rawTeam2: match.team2DisplayName,
+      score1: match.score1,
+      score2: match.score2,
+      winnerTeam: match.winnerTeam,
+    ).catchError((_) {});
+
+    // 3. Persistir en SharedPreferences inmediatamente
     await _saveData();
     notifyListeners();
 
-    // 3. Sincronizar con servidor en background (nunca bloquea ni sobreescribe datos locales)
+    // 4. Sincronizar con servidor en background (no se descarta aunque haya otro sync en curso)
     _syncMatchToServer(league, match);
+  }
+
+  Future<void> recordMatchForActiveLeague(LeagueMatch match) async {
+    final league = activeLeague;
+    if (league == null) return;
+    await recordMatchForLeague(league.id, match);
   }
 
   /// Envía la partida al servidor en background. No bloquea ni reemplaza datos locales.
   Future<void> _syncMatchToServer(League league, LeagueMatch match) async {
-    if (_isSyncingServer) return; // Ya hay un sync en curso
-    _isSyncingServer = true;
     try {
-      await ApiClient().recordMatch(
+      final success = await ApiClient().recordMatch(
         leagueId: league.id,
         match: match,
         leagueName: league.name,
         pin: league.pin,
       );
+      if (!success) {
+        debugPrint('Partida guardada localmente; se sincronizará con el servidor en la próxima conexión.');
+      }
     } catch (e) {
       debugPrint('Error enviando partida al servidor: $e');
-    } finally {
-      _isSyncingServer = false;
     }
   }
 

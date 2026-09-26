@@ -49,6 +49,15 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
     // inicialización asíncrona del GameState con datos desactualizados.
     if (!widget.gameState.isLoaded) return;
 
+    // Si la partida no ha terminado (se reinició o está en juego),
+    // rehabilitar el registro para la siguiente partida jugada
+    if (!widget.gameState.isGameOver) {
+      if (_leagueMatchRecorded) {
+        _leagueMatchRecorded = false;
+      }
+      return;
+    }
+
     if (widget.isLeagueMode &&
         widget.gameState.isGameOver &&
         !_leagueMatchRecorded &&
@@ -73,7 +82,7 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
         winnerTeam: widget.gameState.ganador,
       );
 
-      LeagueService().recordMatchForActiveLeague(match);
+      LeagueService().recordMatchForLeague(widget.leagueId!, match);
 
       // Mostrar confirmación visual al usuario
       if (mounted) {

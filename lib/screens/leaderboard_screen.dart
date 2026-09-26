@@ -428,7 +428,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         ),
       );
     }
-    final allTeams = _useServer ? (_serverTeams ?? []) : _service.teamsRanked;
+    final localLeagueTeams = LeagueService().getGlobalTeamsRanked();
+    final allTeams = _useServer
+        ? (_serverTeams ?? [])
+        : (localLeagueTeams.isNotEmpty ? localLeagueTeams : _service.teamsRanked);
     final filtered = allTeams.where((t) {
       if (_searchQuery.isEmpty) return true;
       final matchDisplay = t.displayName.toLowerCase().contains(_searchQuery);
@@ -559,7 +562,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         ),
       );
     }
-    final allPlayers = _useServer ? (_serverPlayers ?? []) : _service.playersRanked;
+    final localLeaguePlayers = LeagueService().getGlobalPlayersRanked();
+    final allPlayers = _useServer
+        ? (_serverPlayers ?? [])
+        : (localLeaguePlayers.isNotEmpty ? localLeaguePlayers : _service.playersRanked);
     final filtered = allPlayers.where((p) {
       if (_searchQuery.isEmpty) return true;
       return p.name.toLowerCase().contains(_searchQuery);

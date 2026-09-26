@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/game_state.dart';
 import '../screens/leaderboard_screen.dart';
+import '../screens/league/global_ranking_screen.dart';
+import '../services/league_service.dart';
 import '../theme/app_colors.dart';
 import 'settings_dialog.dart';
 
@@ -85,9 +87,21 @@ class HeaderWidget extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (ctx) => const LeaderboardScreen()),
-                );
+                if (gameState.isLeagueMode) {
+                  final activeLeague = LeagueService().activeLeague;
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (ctx) => GlobalRankingScreen(
+                        leagueId: activeLeague?.id,
+                        leagueName: activeLeague?.name,
+                      ),
+                    ),
+                  );
+                } else {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (ctx) => const LeaderboardScreen()),
+                  );
+                }
               },
               borderRadius: BorderRadius.circular(12),
               child: Container(

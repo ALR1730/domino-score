@@ -46,9 +46,9 @@ class LeagueMatch {
       team2DisplayName: map['team2DisplayName'] as String? ?? '',
       team1Members: (map['team1Members'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       team2Members: (map['team2Members'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-      score1: map['score1'] as int? ?? 0,
-      score2: map['score2'] as int? ?? 0,
-      winnerTeam: map['winnerTeam'] as int? ?? 1,
+      score1: (map['score1'] as num?)?.toInt() ?? 0,
+      score2: (map['score2'] as num?)?.toInt() ?? 0,
+      winnerTeam: (map['winnerTeam'] as num?)?.toInt() ?? 1,
     );
   }
 }
@@ -128,6 +128,20 @@ class League {
       if (m.winnerTeam == 2) t2.wins += 1;
     }
 
+    if (year == null || month == null) {
+      // Para el histórico general, incluir también equipos preexistentes que aún no hayan jugado
+      for (final t in teams.values) {
+        monthTeams.putIfAbsent(
+          t.key,
+          () => TeamStats(
+            key: t.key,
+            displayName: t.displayName,
+            members: List.from(t.members),
+          ),
+        );
+      }
+    }
+
     if (monthTeams.isEmpty && (year == null || month == null)) {
       final fallback = teams.values.toList();
       fallback.sort((a, b) {
@@ -170,6 +184,18 @@ class League {
         final p = monthPlayers.putIfAbsent(key, () => PlayerStats(key: key, name: name));
         p.matchesPlayed += 1;
         if (m.winnerTeam == 2) p.wins += 1;
+      }
+    }
+
+    if (year == null || month == null) {
+      // Para el histórico general de la liga, asegurar que todos los participantes
+      // registrados aparezcan en la tabla de clasificación aunque aún tengan 0 partidas
+      for (final p in participants) {
+        final key = NameParser.removeDiacritics(p.trim().toLowerCase());
+        monthPlayers.putIfAbsent(key, () => PlayerStats(key: key, name: p.trim()));
+      }
+      for (final p in players.values) {
+        monthPlayers.putIfAbsent(p.key, () => PlayerStats(key: p.key, name: p.name));
       }
     }
 

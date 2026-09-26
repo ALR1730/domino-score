@@ -122,4 +122,67 @@ void main() {
     expect(historicalPlayers.length, 4);
     expect(historicalPlayers.firstWhere((p) => p.name == 'Alvaro').wins, 1);
   });
+
+  test('La tabla de la liga mantiene todos los participantes registrados y se actualiza con nuevas partidas', () {
+    final league = League(
+      id: 'LIG-ACTIVE-1',
+      name: 'Liga Activa',
+      pin: '1234',
+      createdAt: DateTime.now(),
+      participants: ['Juan', 'Pedro', 'Carlos', 'Luis', 'Manuel', 'Roberto'],
+    );
+
+    // Antes de partidas: 6 participantes en la tabla con 0 PJ
+    expect(league.playersRanked.length, 6);
+    expect(league.playersRanked.every((p) => p.matchesPlayed == 0), true);
+
+    // Partida 1: Juan & Pedro ganan a Carlos & Luis
+    league.recordMatch(
+      LeagueMatch(
+        id: 'm-live-1',
+        date: DateTime.now(),
+        team1DisplayName: 'Juan & Pedro',
+        team2DisplayName: 'Carlos & Luis',
+        team1Members: ['Juan', 'Pedro'],
+        team2Members: ['Carlos', 'Luis'],
+        score1: 200,
+        score2: 150,
+        winnerTeam: 1,
+      ),
+    );
+
+    // Todos los 6 participantes siguen en la tabla (Manuel y Roberto con 0 PJ)
+    expect(league.playersRanked.length, 6);
+    expect(league.playersRanked.firstWhere((p) => p.name == 'Juan').wins, 1);
+    expect(league.playersRanked.firstWhere((p) => p.name == 'Pedro').wins, 1);
+    expect(league.playersRanked.firstWhere((p) => p.name == 'Carlos').wins, 0);
+    expect(league.playersRanked.firstWhere((p) => p.name == 'Manuel').matchesPlayed, 0);
+
+    // Equipos: Juan & Pedro lidera con 1 victoria
+    expect(league.teamsRanked.length, 2);
+    expect(league.teamsRanked.first.displayName, 'Juan & Pedro');
+    expect(league.teamsRanked.first.wins, 1);
+
+    // Nueva Partida 2: Carlos & Luis ganan a Juan & Pedro
+    league.recordMatch(
+      LeagueMatch(
+        id: 'm-live-2',
+        date: DateTime.now(),
+        team1DisplayName: 'Juan & Pedro',
+        team2DisplayName: 'Carlos & Luis',
+        team1Members: ['Juan', 'Pedro'],
+        team2Members: ['Carlos', 'Luis'],
+        score1: 180,
+        score2: 200,
+        winnerTeam: 2,
+      ),
+    );
+
+    // La tabla de equipos refleja la nueva partida jugada
+    final updatedTeams = league.teamsRanked;
+    expect(updatedTeams.firstWhere((t) => t.displayName == 'Carlos & Luis').wins, 1);
+    expect(updatedTeams.firstWhere((t) => t.displayName == 'Carlos & Luis').matchesPlayed, 2);
+    expect(updatedTeams.firstWhere((t) => t.displayName == 'Juan & Pedro').wins, 1);
+    expect(updatedTeams.firstWhere((t) => t.displayName == 'Juan & Pedro').matchesPlayed, 2);
+  });
 }

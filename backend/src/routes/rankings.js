@@ -55,7 +55,7 @@ router.get("/league/:id", (req, res) => {
       const t1 = teamsMap.get(key1);
       t1.matchesPlayed += 1;
       t1.totalPoints += Number(m.score1 || 0);
-      if (m.winnerTeam === 1) t1.wins += 1;
+      if (Number(m.winnerTeam) === 1) t1.wins += 1;
 
       const t2Members = Array.isArray(m.team2Members) ? m.team2Members : extractMembers(m.team2DisplayName || "");
       const key2 = generateTeamKey(t2Members);
@@ -72,7 +72,7 @@ router.get("/league/:id", (req, res) => {
       const t2 = teamsMap.get(key2);
       t2.matchesPlayed += 1;
       t2.totalPoints += Number(m.score2 || 0);
-      if (m.winnerTeam === 2) t2.wins += 1;
+      if (Number(m.winnerTeam) === 2) t2.wins += 1;
 
       // Players
       for (const name of t1Members) {
@@ -80,14 +80,14 @@ router.get("/league/:id", (req, res) => {
         if (!playersMap.has(key)) playersMap.set(key, { key, name, wins: 0, matchesPlayed: 0 });
         const p = playersMap.get(key);
         p.matchesPlayed += 1;
-        if (m.winnerTeam === 1) p.wins += 1;
+        if (Number(m.winnerTeam) === 1) p.wins += 1;
       }
       for (const name of t2Members) {
         const key = removeDiacritics(name.trim().toLowerCase());
         if (!playersMap.has(key)) playersMap.set(key, { key, name, wins: 0, matchesPlayed: 0 });
         const p = playersMap.get(key);
         p.matchesPlayed += 1;
-        if (m.winnerTeam === 2) p.wins += 1;
+        if (Number(m.winnerTeam) === 2) p.wins += 1;
       }
     }
 

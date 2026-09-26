@@ -436,7 +436,7 @@ class Store {
           const t1 = aggregate.get(key1);
           t1.matchesPlayed += 1;
           t1.totalPoints += Number(m.score1 || 0);
-          if (m.winnerTeam === 1) t1.wins += 1;
+          if (Number(m.winnerTeam) === 1) t1.wins += 1;
 
           const t2Members = Array.isArray(m.team2Members)
             ? m.team2Members
@@ -455,7 +455,7 @@ class Store {
           const t2 = aggregate.get(key2);
           t2.matchesPlayed += 1;
           t2.totalPoints += Number(m.score2 || 0);
-          if (m.winnerTeam === 2) t2.wins += 1;
+          if (Number(m.winnerTeam) === 2) t2.wins += 1;
         }
       } else if (!isMonthly) {
         for (const team of Object.values(league.teams || {})) {
@@ -519,7 +519,7 @@ class Store {
             }
             const p = aggregate.get(key);
             p.matchesPlayed += 1;
-            if (m.winnerTeam === 1) p.wins += 1;
+            if (Number(m.winnerTeam) === 1) p.wins += 1;
           }
 
           const t2Members = Array.isArray(m.team2Members)
@@ -532,7 +532,7 @@ class Store {
             }
             const p = aggregate.get(key);
             p.matchesPlayed += 1;
-            if (m.winnerTeam === 2) p.wins += 1;
+            if (Number(m.winnerTeam) === 2) p.wins += 1;
           }
         }
       } else if (!isMonthly) {

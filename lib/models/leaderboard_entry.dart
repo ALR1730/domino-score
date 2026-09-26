@@ -99,9 +99,9 @@ class TeamStats {
       key: map['key'] as String? ?? '',
       displayName: map['displayName'] as String? ?? '',
       members: (map['members'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-      wins: map['wins'] as int? ?? 0,
-      matchesPlayed: map['matchesPlayed'] as int? ?? 0,
-      totalPoints: map['totalPoints'] as int? ?? 0,
+      wins: (map['wins'] as num?)?.toInt() ?? 0,
+      matchesPlayed: (map['matchesPlayed'] as num?)?.toInt() ?? 0,
+      totalPoints: (map['totalPoints'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -139,8 +139,8 @@ class PlayerStats {
     return PlayerStats(
       key: map['key'] as String? ?? '',
       name: map['name'] as String? ?? '',
-      wins: map['wins'] as int? ?? 0,
-      matchesPlayed: map['matchesPlayed'] as int? ?? 0,
+      wins: (map['wins'] as num?)?.toInt() ?? 0,
+      matchesPlayed: (map['matchesPlayed'] as num?)?.toInt() ?? 0,
     );
   }
 }
