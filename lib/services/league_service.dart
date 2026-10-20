@@ -34,6 +34,16 @@ class LeagueService extends ChangeNotifier {
 
   League? getLeague(String id) => _leagues[id];
 
+  /// Solo para tests: vacía el estado en memoria y recarga desde prefs.
+  @visibleForTesting
+  Future<void> resetForTesting() async {
+    _leagues.clear();
+    _activeLeagueId = null;
+    _isLoaded = false;
+    _isSyncingServer = false;
+    await loadData();
+  }
+
   // --- Operaciones de Liga ---
 
   Future<League> createLeague({

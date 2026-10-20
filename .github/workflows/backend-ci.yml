@@ -3,8 +3,14 @@ name: Domino Score Backend CI
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
   pull_request:
     branches: [ "main" ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
 
 jobs:
   test:
@@ -24,12 +30,13 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-          cache-dependency-path: backend/package.json
+          # La clave de caché se basa en el lockfile real del backend.
+          cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies
         run: |
           cd backend
-          npm install
+          npm ci
 
       - name: Run automated test suite
         run: |

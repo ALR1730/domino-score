@@ -82,4 +82,20 @@
 
 **Compatibilidad:** sin cambios de contrato; el backend ya aceptaba fechas con `Z` y PIN en body. **Verificación:** `flutter analyze` sin issues; `flutter test` en verde.
 
+---
+
+## Fase 5 — Tests y CI (2026-10-20)
+
+**Objetivo:** pasar de 2 tests (un smoke test) + un script manual a una batería real de tests en ambos lados.
+
+| Tarea | Archivo | Cambio |
+|-------|---------|--------|
+| 5.1 | `test/game_state_test.dart` *(nuevo, 18 tests)* | Marcador, rondas (alta/edición/borrado y tolerancia a índices inválidos), ganador, meta y la nueva transición de fin de partida (`consumeJustFinished`, una sola vez; deshacer la ronda decisiva; baseline al restaurar). Persistencia con `SharedPreferences.setMockInitialValues`, incluida una partida restaurada ya terminada que **no** debe re-registrarse. |
+| 5.2 | `test/name_parser_test.dart` *(nuevo)* + `test/ranking_calculator_test.dart` *(nuevo)* | `NameParser`: separadores, mayúsculas, diacríticos, claves independientes del orden, formato de nombres. `RankingCalculator`: orden (victorias → winRate → puntos), agregación de equipos/jugadores, normalización, fusión sin aliasar y los atajos agregar+ordenar. |
+| 5.3 | `test/league_service_test.dart` *(nuevo)* + `lib/services/league_service.dart` | Tests de `LeagueService` con `SharedPreferences` mockeado y un **cliente HTTP falso** inyectado con `http.runWithClient` + `MockClient` (sin tocar la red): crear, unirse (local, servidor y error de conexión), `recordMatchToLeague` en liga no activa, borrado (local y rechazo del servidor), merge de sync sin duplicar partidas y rankings globales/mensuales. Se añade `resetForTesting()` (`@visibleForTesting`) porque el servicio es un singleton y cada test necesita partir de cero. |
+| 5.4 | `backend/test/api.test.js` *(reescrito, 21 tests)* + `backend/package.json` | Migrado del script `runTests()` a **`node:test` + `fetch`** global: servidor en puerto efímero, `DATA_DIR` temporal (`mkdtemp`), sin dependencias nuevas. Cubre healthcheck y cabeceras, CORS (origen permitido/bloqueado), 404 JSON, flujo completo de liga, validaciones 400/401, PIN en sync/join/matches/participantes, nombres con `%`, lista pública sin PIN y el bucketing **UTC** de rankings mensuales en el endpoint real. `npm test` = `node --test "test/**/*.test.js"`. |
+| 5.5 | `.github/workflows/backend-ci.yml` y `flutter-build.yml` | Clave de caché de npm corregida (`backend/package-lock.json` en vez de `package.json`) + `npm ci` reproducible; filtros `paths:` en ambos workflows para no ejecutar CI completo en cambios irrelevantes. |
+
+**Verificación:** `flutter analyze` sin issues; **53 tests** de Flutter y **21 tests** del backend, todos en verde.
+
 

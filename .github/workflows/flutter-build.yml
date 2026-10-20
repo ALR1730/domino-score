@@ -3,8 +3,26 @@ name: Flutter Build & Deploy (Android APK & Web)
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'lib/**'
+      - 'test/**'
+      - 'android/**'
+      - 'web/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'analysis_options.yaml'
+      - '.github/workflows/flutter-build.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'lib/**'
+      - 'test/**'
+      - 'android/**'
+      - 'web/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'analysis_options.yaml'
+      - '.github/workflows/flutter-build.yml'
   workflow_dispatch:
 
 permissions:

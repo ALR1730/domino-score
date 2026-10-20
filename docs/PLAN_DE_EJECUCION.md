@@ -63,11 +63,11 @@
 
 | # | Tarea | Estado |
 |---|-------|--------|
-| 5.1 | Tests Dart de `GameState` (marcador, rondas, ganador, persistencia con `SharedPreferences.setMockInitialValues`) | ⬜ |
-| 5.2 | Tests Dart de `NameParser` y del nuevo `ranking_calculator` | ⬜ |
-| 5.3 | Tests Dart de `LeagueService` (crear/unir/eliminar, merge con servidor vía `http.runWithClient` + cliente falso) | ⬜ |
-| 5.4 | Reescribir los tests del backend con `node:test` + `fetch` contra servidor en puerto efímero y `DATA_DIR` temporal (sin mutar el repo, sin dependencias nuevas); cubrir validaciones 400/401 y rankings | ⬜ |
-| 5.5 | CI: clave de caché npm correcta (`package-lock.json`), filtros de path para los workflows | ⬜ |
+| 5.1 | Tests Dart de `GameState` (marcador, rondas, ganador, persistencia con `SharedPreferences.setMockInitialValues`) | ✅ |
+| 5.2 | Tests Dart de `NameParser` y del nuevo `ranking_calculator` | ✅ |
+| 5.3 | Tests Dart de `LeagueService` (crear/unir/eliminar, merge con servidor vía `http.runWithClient` + cliente falso) | ✅ |
+| 5.4 | Reescribir los tests del backend con `node:test` + `fetch` contra servidor en puerto efímero y `DATA_DIR` temporal (sin mutar el repo, sin dependencias nuevas); cubrir validaciones 400/401 y rankings | ✅ |
+| 5.5 | CI: clave de caché npm correcta (`package-lock.json`), filtros de path para los workflows | ✅ |
 
 ## Fase 6 — Pulido
 

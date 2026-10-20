@@ -1,353 +1,443 @@
-const assert = require("assert");
-const http = require("http");
-const os = require("os");
-const path = require("path");
+/**
+ * Pruebas del backend con el runner integrado de Node (`node:test` + `fetch`).
+ *
+ * No requieren dependencias nuevas: usan el `fetch` global de Node 18+.
+ * El servidor se levanta en un puerto efímero y los datos se aíslan en un
+ * DATA_DIR temporal, para no tocar backend/data/leagues.json.
+ */
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const http = require("node:http");
+const os = require("node:os");
+const path = require("node:path");
+const fs = require("node:fs");
 
-// Directorio de datos TEMPORAL para no mutar backend/data/leagues.json
-process.env.DATA_DIR = path.join(os.tmpdir(), `domino-test-${process.pid}`);
+// Aislar el almacenamiento ANTES de cargar la app.
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "domino-test-"));
+process.env.DATA_DIR = DATA_DIR;
+process.env.ALLOW_LOCAL_FALLBACK = "true";
 
 const app = require("../src/server");
+const store = require("../src/models/store");
 const {
   extractMembers,
   generateTeamKey,
 } = require("../src/utils/nameParser");
+const rankingsUtil = require("../src/utils/rankings");
 
-// Helper para hacer requests HTTP locales contra la app Express
-function request(server, options, body = null) {
-  return new Promise((resolve, reject) => {
-    const payload = body ? (typeof body === "string" ? body : JSON.stringify(body)) : null;
-    const headers = {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    };
-    if (payload) {
-      headers["Content-Length"] = Buffer.byteLength(payload);
-    }
-    const req = http.request(
-      {
-        host: "127.0.0.1",
-        port: server.address().port,
-        ...options,
-        headers,
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => {
-          let json = null;
-          try {
-            json = JSON.parse(data);
-          } catch (_) {
-            json = data;
-          }
-          resolve({ status: res.statusCode, body: json });
-        });
-      }
-    );
-    req.on("error", reject);
-    if (payload) {
-      req.write(payload);
-    }
-    req.end();
+let server;
+let baseUrl;
+
+test.before(async () => {
+  server = http.createServer(app);
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  baseUrl = `http://127.0.0.1:${server.address().port}`;
+});
+
+test.after(() => {
+  store.leagues.clear();
+  store.saveLocal();
+  if (server) server.close();
+  fs.rmSync(DATA_DIR, { recursive: true, force: true });
+});
+
+/** Atajo de fetch que devuelve { status, body } con JSON parseado. */
+async function api(method, endpoint, body, headers = {}) {
+  const res = await fetch(`${baseUrl}${endpoint}`, {
+    method,
+    headers: { "Content-Type": "application/json", ...headers },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
-}
-
-async function runTests() {
-  console.log("🧪 Iniciando pruebas automatizadas del Backend REST...\n");
-
-  // 1. Test unitario de nameParser
-  console.log("1. Test NameParser: normalización independiente del orden...");
-  const teamA = extractMembers("Carlos y Juan");
-  const teamB = extractMembers("Juan & Carlos");
-  const keyA = generateTeamKey(teamA);
-  const keyB = generateTeamKey(teamB);
-  assert.strictEqual(keyA, "carlos_juan");
-  assert.strictEqual(keyB, "carlos_juan");
-  assert.strictEqual(keyA, keyB, "Las dos combinaciones deben generar la misma clave");
-  console.log("   ✅ NameParser pasó correctamente.\n");
-
-  // 2. Iniciar servidor temporal para pruebas de integración
-  const server = http.createServer(app);
-  await new Promise((res) => server.listen(0, "127.0.0.1", res));
-
+  const text = await res.text();
+  let parsed;
   try {
-    // 3. Test Healthcheck
-    console.log("2. Test GET /health...");
-    const health = await request(server, { method: "GET", path: "/health" });
-    assert.strictEqual(health.status, 200);
-    assert.strictEqual(health.body.status, "ok");
-    console.log("   ✅ Healthcheck OK.\n");
-
-    // 4. Test Crear Liga
-    console.log("3. Test POST /api/leagues (Crear Liga)...");
-    const createRes = await request(
-      server,
-      { method: "POST", path: "/api/leagues" },
-      {
-        name: "Liga de Prueba CI",
-        pin: "8888",
-        initialParticipants: ["Ana", "Beto", "Carlos", "Diana"],
-      }
-    );
-    assert.strictEqual(createRes.status, 201);
-    assert.strictEqual(createRes.body.success, true);
-    const createdLeague = createRes.body.league;
-    assert.ok(createdLeague.id.startsWith("LIG-"));
-    console.log(`   ✅ Liga creada con ID: ${createdLeague.id}\n`);
-
-    // 5. Test Unirse con PIN
-    console.log("4. Test POST /api/leagues/join (Unirse con PIN correcto)...");
-    const joinOk = await request(
-      server,
-      { method: "POST", path: "/api/leagues/join" },
-      { nameOrId: createdLeague.id, pin: "8888" }
-    );
-    assert.strictEqual(joinOk.status, 200);
-    assert.strictEqual(joinOk.body.league.name, "Liga de Prueba CI");
-    console.log("   ✅ Unirse con PIN correcto OK.\n");
-
-    console.log("5. Test POST /api/leagues/join (Rechazo con PIN erróneo)...");
-    const joinFail = await request(
-      server,
-      { method: "POST", path: "/api/leagues/join" },
-      { nameOrId: createdLeague.id, pin: "0000" }
-    );
-    assert.strictEqual(joinFail.status, 401);
-    console.log("   ✅ Rechazo con PIN inválido OK.\n");
-
-    // 6. Test Registrar Partida y Verificar Rankings
-    console.log("6. Test POST /api/leagues/:id/matches (Registrar Partida)...");
-    const matchRes = await request(
-      server,
-      { method: "POST", path: `/api/leagues/${createdLeague.id}/matches` },
-      {
-        pin: "8888",
-        team1DisplayName: "Ana & Beto",
-        team2DisplayName: "Carlos & Diana",
-        team1Members: ["Ana", "Beto"],
-        team2Members: ["Carlos", "Diana"],
-        score1: 205,
-        score2: 150,
-        winnerTeam: 1,
-      }
-    );
-    assert.strictEqual(matchRes.status, 201);
-    assert.strictEqual(matchRes.body.match.winnerTeam, 1);
-    console.log("   ✅ Partida registrada y estadísticas recalculadas.\n");
-
-    // 7. Test Rankings Globales
-    console.log("7. Test GET /api/rankings/global/teams...");
-    const rankingsTeams = await request(server, { method: "GET", path: "/api/rankings/global/teams" });
-    assert.strictEqual(rankingsTeams.status, 200);
-    assert.ok(Array.isArray(rankingsTeams.body.teams));
-    assert.ok(rankingsTeams.body.teams.length > 0);
-    console.log(`   ✅ Ranking global de equipos OK (${rankingsTeams.body.teams.length} equipos).\n`);
-
-    console.log("8. Test GET /api/rankings/global/players...");
-    const rankingsPlayers = await request(server, { method: "GET", path: "/api/rankings/global/players" });
-    assert.strictEqual(rankingsPlayers.status, 200);
-    assert.ok(Array.isArray(rankingsPlayers.body.players));
-    console.log(`   ✅ Ranking global de jugadores OK (${rankingsPlayers.body.players.length} jugadores).\n`);
-
-    // 9. Test Eliminar Liga con PIN incorrecto (Rechazo)
-    console.log("9. Test DELETE /api/leagues/:id (Rechazo con PIN inválido)...");
-    const delFail = await request(
-      server,
-      { method: "DELETE", path: `/api/leagues/${createdLeague.id}` },
-      { pin: "wrong-pin" }
-    );
-    assert.strictEqual(delFail.status, 401);
-    console.log("   ✅ Rechazo con PIN incorrecto OK.\n");
-
-    // 10. Test Eliminar Liga con PIN correcto (Éxito)
-    console.log("10. Test DELETE /api/leagues/:id (Éxito con PIN correcto)...");
-    const delSuccess = await request(
-      server,
-      { method: "DELETE", path: `/api/leagues/${createdLeague.id}` },
-      { pin: "8888" }
-    );
-    assert.strictEqual(delSuccess.status, 200);
-    assert.strictEqual(delSuccess.body.success, true);
-    console.log("   ✅ Liga eliminada exitosamente.\n");
-
-    // 11. Test Sincronizar Liga completa
-    console.log("11. Test POST /api/leagues/sync (Sincronizar Liga completa)...");
-    const syncRes = await request(
-      server,
-      { method: "POST", path: "/api/leagues/sync" },
-      {
-        id: "LIG-SYNC-TEST",
-        name: "Liga Sincronizada",
-        pin: "5555",
-        participants: ["Hugo", "Paco", "Luis"],
-        matches: [
-          {
-            id: "match_sync_1",
-            date: new Date().toISOString(),
-            team1DisplayName: "Hugo y Paco",
-            team2DisplayName: "Luis y Extra",
-            team1Members: ["Hugo", "Paco"],
-            team2Members: ["Luis", "Extra"],
-            score1: 200,
-            score2: 120,
-            winnerTeam: 1,
-          },
-        ],
-      }
-    );
-    assert.strictEqual(syncRes.status, 200);
-    assert.strictEqual(syncRes.body.success, true);
-    assert.strictEqual(syncRes.body.league.id, "LIG-SYNC-TEST");
-    assert.strictEqual(syncRes.body.league.matches.length, 1);
-    console.log("   ✅ Sincronización de liga completa OK.\n");
-
-    // 12. Test Exclusión de Partidas Casuales del Ranking (Solo Ligas oficiales cuentan)
-    console.log("12. Test: Partidas casuales NO deben afectar rankings...");
-    const rankingsBefore = await request(server, { method: "GET", path: "/api/rankings/global/teams" });
-    const countBefore = rankingsBefore.body.teams.length;
-    // Verificar que solo ligas oficiales están en el ranking
-    assert.ok(countBefore >= 2);
-    console.log("   ✅ Verificado: Solo las ligas oficiales afectan el ranking global.\n");
-
-    // 13. Seguridad: GET /api/leagues/:id NO debe exponer el PIN
-    console.log("13. Test GET /api/leagues/:id (No expone el PIN)...");
-    const createSec = await request(
-      server,
-      { method: "POST", path: "/api/leagues" },
-      { name: "Liga Seguridad Test", pin: "4321", initialParticipants: ["Ana", "Beto"] }
-    );
-    assert.strictEqual(createSec.status, 201);
-    const secId = createSec.body.league.id;
-    const getRes = await request(server, { method: "GET", path: `/api/leagues/${secId}` });
-    assert.strictEqual(getRes.status, 200);
-    assert.strictEqual(getRes.body.league.pin, undefined, "El PIN no debe aparecer en GET /:id");
-    console.log("   ✅ GET /:id no devuelve el PIN.\n");
-
-    // 14. Seguridad: sync con PIN incorrecto debe rechazarse (401)
-    console.log("14. Test POST /api/leagues/sync (Rechazo con PIN inválido)...");
-    const syncFail = await request(
-      server,
-      { method: "POST", path: "/api/leagues/sync" },
-      { id: secId, name: "Liga Seguridad Test", pin: "0000", matches: [] }
-    );
-    assert.strictEqual(syncFail.status, 401);
-    console.log("   ✅ Sync con PIN inválido rechazado.\n");
-
-    // 15. Seguridad: sync con PIN correcto no debe sobrescribir el PIN guardado
-    console.log("15. Test POST /api/leagues/sync (No sobrescribe el PIN)...");
-    const syncOk = await request(
-      server,
-      { method: "POST", path: "/api/leagues/sync" },
-      { id: secId, name: "Liga Seguridad Test v2", pin: "4321", matches: [] }
-    );
-    assert.strictEqual(syncOk.status, 200);
-    const joinAfterSync = await request(
-      server,
-      { method: "POST", path: "/api/leagues/join" },
-      { nameOrId: secId, pin: "4321" }
-    );
-    assert.strictEqual(joinAfterSync.status, 200, "El PIN original debe seguir vigente tras el sync");
-    console.log("   ✅ El PIN original se conserva tras sincronizar.\n");
-
-    // 16. Seguridad: registrar partida sin PIN debe rechazarse (401)
-    console.log("16. Test POST /api/leagues/:id/matches (Rechazo sin PIN)...");
-    const matchNoPin = await request(
-      server,
-      { method: "POST", path: `/api/leagues/${secId}/matches` },
-      {
-        team1Members: ["Ana", "Beto"],
-        team2Members: ["Carlos", "Diana"],
-        score1: 100,
-        score2: 50,
-        winnerTeam: 1,
-      }
-    );
-    assert.strictEqual(matchNoPin.status, 401);
-    console.log("   ✅ Partida sin PIN rechazada.\n");
-
-    // 17. Seguridad: agregar participante sin PIN debe rechazarse (401)
-    console.log("17. Test POST /api/leagues/:id/participants (Rechazo sin PIN)...");
-    const partNoPin = await request(
-      server,
-      { method: "POST", path: `/api/leagues/${secId}/participants` },
-      { name: "Efraín" }
-    );
-    assert.strictEqual(partNoPin.status, 401);
-    console.log("   ✅ Participante sin PIN rechazado.\n");
-
-    // 18. Validación: puntajes inválidos deben devolver 400
-    console.log("18. Test POST /api/leagues/:id/matches (Puntaje inválido -> 400)...");
-    const badScore = await request(
-      server,
-      { method: "POST", path: `/api/leagues/${secId}/matches` },
-      {
-        pin: "4321",
-        team1Members: ["Ana", "Beto"],
-        team2Members: ["Carlos", "Diana"],
-        score1: "banana",
-        score2: -5,
-        winnerTeam: 1,
-      }
-    );
-    assert.strictEqual(badScore.status, 400);
-    console.log("   ✅ Puntajes inválidos rechazados con 400.\n");
-
-    // 19. Validación: winnerTeam inválido debe devolver 400
-    console.log("19. Test POST /api/leagues/:id/matches (winnerTeam inválido -> 400)...");
-    const badWinner = await request(
-      server,
-      { method: "POST", path: `/api/leagues/${secId}/matches` },
-      {
-        pin: "4321",
-        team1Members: ["Ana", "Beto"],
-        team2Members: ["Carlos", "Diana"],
-        score1: 100,
-        score2: 50,
-        winnerTeam: 3,
-      }
-    );
-    assert.strictEqual(badWinner.status, 400);
-    console.log("   ✅ winnerTeam inválido rechazado con 400.\n");
-
-    // 20. Regresión: nombres de participante con "%" no deben romper el server
-    console.log("20. Test DELETE /api/leagues/:id/participants/:name (Nombre con '%')...");
-    const addPct = await request(
-      server,
-      { method: "POST", path: `/api/leagues/${secId}/participants` },
-      { name: "50% Juan", pin: "4321" }
-    );
-    assert.strictEqual(addPct.status, 200);
-    const delPct = await request(
-      server,
-      {
-        method: "DELETE",
-        path: `/api/leagues/${secId}/participants/${encodeURIComponent("50% Juan")}`,
-      },
-      { pin: "4321" }
-    );
-    assert.strictEqual(delPct.status, 200);
-    assert.ok(!delPct.body.participants.some((p) => p.includes("%")));
-    console.log("   ✅ Nombres con '%' manejados sin error.\n");
-
-    // Limpieza: eliminar la liga de seguridad creada
-    await request(server, { method: "DELETE", path: `/api/leagues/${secId}` }, { pin: "4321" });
-
-    // Limpiar ligas de prueba generadas durante los tests
-    const store = require("../src/models/store");
-    store.leagues.clear();
-    store.saveLocal();
-
-    console.log("🎉 ¡TODAS LAS PRUEBAS AUTOMATIZADAS PASARON CON ÉXITO!");
-    process.exit(0);
-  } catch (err) {
-    console.error("❌ Error en las pruebas:", err);
-    process.exit(1);
-  } finally {
-    const store = require("../src/models/store");
-    store.leagues.clear();
-    store.saveLocal();
-    server.close();
+    parsed = JSON.parse(text);
+  } catch {
+    parsed = text;
   }
+  return { status: res.status, body: parsed, headers: res.headers };
 }
 
-runTests();
+// ---------------------------------------------------------------------------
+// NameParser
+// ---------------------------------------------------------------------------
+
+test("nameParser: la clave de equipo no depende del orden", () => {
+  assert.equal(generateTeamKey(extractMembers("Carlos y Juan")), "carlos_juan");
+  assert.equal(generateTeamKey(extractMembers("Juan & Carlos")), "carlos_juan");
+});
+
+test("nameParser: quita diacríticos y normaliza", () => {
+  assert.equal(generateTeamKey(extractMembers("Efraín y Ana")), "ana_efrain");
+});
+
+// ---------------------------------------------------------------------------
+// Utilidades puras de rankings (bucketing UTC)
+// ---------------------------------------------------------------------------
+
+test("rankings: monthKey usa UTC", () => {
+  // 2026-09-30T23:30:00Z sigue siendo septiembre en UTC.
+  assert.equal(rankingsUtil.monthKey("2026-09-30T23:30:00.000Z"), "2026-09");
+  assert.equal(rankingsUtil.monthKey("nope"), null);
+});
+
+test("rankings: availableMonths ordena descendente y sin duplicados", () => {
+  const months = rankingsUtil.availableMonths([
+    { matches: [{ date: "2026-03-01T00:00:00Z" }, { date: "2026-05-01T00:00:00Z" }] },
+    { matches: [{ date: "2026-05-20T00:00:00Z" }] },
+  ]);
+  assert.deepEqual(months, ["2026-05", "2026-03"]);
+});
+
+test("rankings: la liga casual se excluye del ranking global", () => {
+  const { teams } = rankingsUtil.rankGlobal([
+    {
+      id: rankingsUtil.CASUAL_LEAGUE_ID,
+      matches: [
+        {
+          team1Members: ["X"],
+          team2Members: ["Y"],
+          score1: 200,
+          score2: 0,
+          winnerTeam: 1,
+          date: "2026-05-01T00:00:00Z",
+        },
+      ],
+    },
+  ]);
+  assert.equal(teams.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// Healthcheck y cabeceras
+// ---------------------------------------------------------------------------
+
+test("GET /health responde ok sin exponer detalles internos", async () => {
+  const res = await api("GET", "/health");
+  assert.equal(res.status, 200);
+  assert.equal(res.body.status, "ok");
+  assert.ok(res.body.version);
+  assert.equal(res.body.features, undefined, "ya no se listan features públicas");
+});
+
+test("cabeceras de seguridad presentes; X-Powered-By ausente", async () => {
+  const res = await api("GET", "/health");
+  assert.equal(res.headers.get("x-powered-by"), null);
+  assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(res.headers.get("x-frame-options"), "DENY");
+  assert.ok(res.headers.get("referrer-policy"));
+});
+
+test("CORS: refleja el origen permitido y bloquea uno no listado", async () => {
+  const allowed = await api("GET", "/health", undefined, {
+    Origin: "https://alr1730.github.io",
+  });
+  assert.equal(allowed.headers.get("access-control-allow-origin"), "https://alr1730.github.io");
+
+  const blocked = await api("GET", "/health", undefined, {
+    Origin: "https://evil.example.com",
+  });
+  assert.equal(blocked.headers.get("access-control-allow-origin"), null);
+});
+
+test("404 en endpoint inexistente devuelve JSON", async () => {
+  const res = await api("GET", "/ruta-que-no-existe");
+  assert.equal(res.status, 404);
+  assert.equal(res.body.success, false);
+});
+
+// ---------------------------------------------------------------------------
+// Ciclo de vida de ligas
+// ---------------------------------------------------------------------------
+
+test("flujo completo de liga: crear, unirse, registrar partida, rankings, eliminar", async () => {
+  const create = await api("POST", "/api/leagues", {
+    name: "Liga Flujo Completo",
+    pin: "8888",
+    initialParticipants: ["Ana", "Beto", "Carlos", "Diana"],
+  });
+  assert.equal(create.status, 201);
+  assert.equal(create.body.success, true);
+  const league = create.body.league;
+  assert.match(league.id, /^LIG-\d{4}$/);
+  assert.equal(league.players && Object.keys(league.players).length, 4);
+  assert.doesNotMatch(JSON.stringify(create.body), /"pin"/, "la creación no devuelve el PIN");
+
+  const joinOk = await api("POST", "/api/leagues/join", {
+    nameOrId: league.id,
+    pin: "8888",
+  });
+  assert.equal(joinOk.status, 200);
+  assert.equal(joinOk.body.league.name, "Liga Flujo Completo");
+  assert.equal(joinOk.body.league.pin, "8888", "join es el único endpoint que devuelve el PIN");
+
+  const joinFail = await api("POST", "/api/leagues/join", {
+    nameOrId: league.id,
+    pin: "0000",
+  });
+  assert.equal(joinFail.status, 401);
+
+  const match = await api("POST", `/api/leagues/${league.id}/matches`, {
+    pin: "8888",
+    team1DisplayName: "Ana & Beto",
+    team2DisplayName: "Carlos & Diana",
+    team1Members: ["Ana", "Beto"],
+    team2Members: ["Carlos", "Diana"],
+    score1: 205,
+    score2: 150,
+    winnerTeam: 1,
+  });
+  assert.equal(match.status, 201);
+  assert.equal(match.body.match.winnerTeam, 1);
+  assert.ok(match.body.match.id, "el servidor genera un id de partida");
+
+  const leagueRes = await api("GET", `/api/leagues/${league.id}`);
+  assert.equal(leagueRes.body.league.pin, undefined, "GET /:id no expone el PIN");
+  assert.equal(leagueRes.body.league.matches.length, 1);
+
+  const globalTeams = await api("GET", "/api/rankings/global/teams");
+  assert.equal(globalTeams.status, 200);
+  const ana = globalTeams.body.teams.find((t) => t.key === "ana_beto");
+  assert.ok(ana, "el equipo debe aparecer en el ranking global");
+  assert.equal(ana.wins, 1);
+
+  const leagueRanking = await api("GET", `/api/rankings/league/${league.id}`);
+  assert.equal(leagueRanking.status, 200);
+  assert.ok(Array.isArray(leagueRanking.body.teams));
+
+  const delFail = await api("DELETE", `/api/leagues/${league.id}`, { pin: "wrong" });
+  assert.equal(delFail.status, 401);
+
+  const delOk = await api("DELETE", `/api/leagues/${league.id}`, { pin: "8888" });
+  assert.equal(delOk.status, 200);
+  assert.equal(delOk.body.success, true);
+
+  const gone = await api("GET", `/api/leagues/${league.id}`);
+  assert.equal(gone.status, 404);
+});
+
+test("crear liga sin nombre devuelve 400", async () => {
+  const res = await api("POST", "/api/leagues", { name: "   ", pin: "1234" });
+  assert.equal(res.status, 400);
+});
+
+test("registrar partida sin PIN devuelve 401", async () => {
+  const create = await api("POST", "/api/leagues", { name: "Sin PIN Match", pin: "4321" });
+  const id = create.body.league.id;
+  const res = await api("POST", `/api/leagues/${id}/matches`, {
+    team1Members: ["Ana"],
+    team2Members: ["Beto"],
+    score1: 100,
+    score2: 50,
+    winnerTeam: 1,
+  });
+  assert.equal(res.status, 401);
+});
+
+test("registrar partida sin miembros devuelve 400", async () => {
+  const create = await api("POST", "/api/leagues", { name: "Sin Miembros", pin: "4321" });
+  const id = create.body.league.id;
+  const res = await api("POST", `/api/leagues/${id}/matches`, {
+    pin: "4321",
+    team1Members: [],
+    team2Members: ["Beto"],
+    score1: 100,
+    score2: 50,
+    winnerTeam: 1,
+  });
+  assert.equal(res.status, 400);
+});
+
+test("puntajes inválidos devuelven 400", async () => {
+  const create = await api("POST", "/api/leagues", { name: "Puntajes Malos", pin: "4321" });
+  const id = create.body.league.id;
+  for (const body of [
+    { score1: "banana", score2: -5 },
+    { score1: 1.5, score2: 0 },
+  ]) {
+    const res = await api("POST", `/api/leagues/${id}/matches`, {
+      pin: "4321",
+      team1Members: ["Ana"],
+      team2Members: ["Beto"],
+      winnerTeam: 1,
+      ...body,
+    });
+    assert.equal(res.status, 400, `debe rechazar ${JSON.stringify(body)}`);
+  }
+});
+
+test("winnerTeam inválido devuelve 400", async () => {
+  const create = await api("POST", "/api/leagues", { name: "Ganador Invalido", pin: "4321" });
+  const id = create.body.league.id;
+  const res = await api("POST", `/api/leagues/${id}/matches`, {
+    pin: "4321",
+    team1Members: ["Ana"],
+    team2Members: ["Beto"],
+    score1: 100,
+    score2: 50,
+    winnerTeam: 3,
+  });
+  assert.equal(res.status, 400);
+});
+
+// ---------------------------------------------------------------------------
+// Sincronización y seguridad del PIN
+// ---------------------------------------------------------------------------
+
+test("sync con PIN incorrecto devuelve 401 y no sobrescribe el PIN guardado", async () => {
+  const create = await api("POST", "/api/leagues", { name: "Sync Segura", pin: "4321" });
+  const id = create.body.league.id;
+
+  const badSync = await api("POST", "/api/leagues/sync", {
+    id,
+    name: "Sync Segura",
+    pin: "0000",
+    matches: [],
+  });
+  assert.equal(badSync.status, 401);
+
+  const okSync = await api("POST", "/api/leagues/sync", {
+    id,
+    name: "Sync Segura v2",
+    pin: "4321",
+    matches: [],
+  });
+  assert.equal(okSync.status, 200);
+
+  const join = await api("POST", "/api/leagues/join", { nameOrId: id, pin: "4321" });
+  assert.equal(join.status, 200, "el PIN original debe seguir vigente");
+
+  const joinOldName = await api("POST", "/api/leagues/join", { nameOrId: id, pin: "4321" });
+  assert.equal(joinOldName.body.league.name, "Sync Segura v2", "el nombre sí se actualiza");
+});
+
+test("sync crea la liga cuando no existe y agrega sus partidas", async () => {
+  const res = await api("POST", "/api/leagues/sync", {
+    id: "LIG-SYNC-NUEVA",
+    name: "Sincronizada Nueva",
+    pin: "5555",
+    participants: ["Hugo", "Paco"],
+    matches: [
+      {
+        id: "match_sync_1",
+        date: "2026-06-10T12:00:00.000Z",
+        team1DisplayName: "Hugo y Paco",
+        team2DisplayName: "Luis y Extra",
+        team1Members: ["Hugo", "Paco"],
+        team2Members: ["Luis", "Extra"],
+        score1: 200,
+        score2: 120,
+        winnerTeam: 1,
+      },
+    ],
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.league.matches.length, 1);
+
+  // Reenviar el mismo match no lo duplica.
+  const again = await api("POST", "/api/leagues/sync", {
+    id: "LIG-SYNC-NUEVA",
+    name: "Sincronizada Nueva",
+    pin: "5555",
+    matches: [
+      {
+        id: "match_sync_1",
+        date: "2026-06-10T12:00:00.000Z",
+        team1Members: ["Hugo", "Paco"],
+        team2Members: ["Luis", "Extra"],
+        score1: 200,
+        score2: 120,
+        winnerTeam: 1,
+      },
+    ],
+  });
+  assert.equal(again.body.league.matches.length, 1, "no se duplica la misma partida");
+});
+
+test("sync sin id devuelve 400", async () => {
+  const res = await api("POST", "/api/leagues/sync", { name: "Sin id" });
+  assert.equal(res.status, 400);
+});
+
+// ---------------------------------------------------------------------------
+// Participantes
+// ---------------------------------------------------------------------------
+
+test("agregar y eliminar participantes requiere PIN y maneja nombres con '%'", async () => {
+  const create = await api("POST", "/api/leagues", { name: "Participantes", pin: "4321" });
+  const id = create.body.league.id;
+
+  const noPin = await api("POST", `/api/leagues/${id}/participants`, { name: "Efraín" });
+  assert.equal(noPin.status, 401);
+
+  const addPercent = await api("POST", `/api/leagues/${id}/participants`, {
+    name: "50% Juan",
+    pin: "4321",
+  });
+  assert.equal(addPercent.status, 200);
+  assert.ok(addPercent.body.participants.includes("50% Juan"));
+
+  // Sin volver a codificar el '%' dos veces (regresión de decodeURIComponent).
+  const del = await api(
+    "DELETE",
+    `/api/leagues/${id}/participants/${encodeURIComponent("50% Juan")}`,
+    { pin: "4321" }
+  );
+  assert.equal(del.status, 200);
+  assert.ok(!del.body.participants.some((p) => p.includes("%")));
+});
+
+test("la lista pública de ligas no expone el PIN", async () => {
+  await api("POST", "/api/leagues", { name: "Lista Publica", pin: "9999" });
+  const res = await api("GET", "/api/leagues");
+  assert.equal(res.status, 200);
+  assert.doesNotMatch(JSON.stringify(res.body), /"pin"/);
+  const entry = res.body.leagues.find((l) => l.name === "Lista Publica");
+  assert.ok(entry);
+  assert.equal(typeof entry.participantsCount, "number");
+  assert.equal(typeof entry.matchesCount, "number");
+});
+
+// ---------------------------------------------------------------------------
+// Rankings por mes (bucketing UTC en el endpoint real)
+// ---------------------------------------------------------------------------
+
+test("los rankings mensuales agrupan por mes en UTC", async () => {
+  const create = await api("POST", "/api/leagues", {
+    name: "Ranking Mensual",
+    pin: "2468",
+    initialParticipants: ["Ana", "Beto"],
+  });
+  const id = create.body.league.id;
+
+  // 2026-09-30T23:30Z => septiembre UTC; 2026-10-01T01:00Z => octubre UTC.
+  await api("POST", `/api/leagues/${id}/matches`, {
+    pin: "2468",
+    date: "2026-09-30T23:30:00.000Z",
+    team1Members: ["Ana"],
+    team2Members: ["Beto"],
+    score1: 200,
+    score2: 100,
+    winnerTeam: 1,
+  });
+  await api("POST", `/api/leagues/${id}/matches`, {
+    pin: "2468",
+    date: "2026-10-01T01:00:00.000Z",
+    team1Members: ["Ana"],
+    team2Members: ["Beto"],
+    score1: 100,
+    score2: 200,
+    winnerTeam: 2,
+  });
+
+  const sep = await api("GET", "/api/rankings/global/teams?year=2026&month=9");
+  const anaSep = sep.body.teams.find((t) => t.key === "ana");
+  assert.equal(anaSep.matchesPlayed, 1);
+  assert.equal(anaSep.wins, 1);
+  assert.ok(sep.body.availableMonths.includes("2026-09"));
+  assert.ok(sep.body.availableMonths.includes("2026-10"));
+
+  const oct = await api("GET", "/api/rankings/global/players?year=2026&month=10");
+  const betoOct = oct.body.players.find((p) => p.key === "beto");
+  assert.equal(betoOct.wins, 1);
+});
