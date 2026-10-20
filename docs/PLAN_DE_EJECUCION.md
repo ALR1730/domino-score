@@ -30,13 +30,13 @@
 
 | # | Tarea | Estado |
 |---|-------|--------|
-| 2.1 | `save()` persiste en MongoDB de forma **awaited** y solo la liga afectada; los errores llegan al cliente como 500 en vez de responder "success" antes de persistir | ⬜ |
-| 2.2 | Fallo fatal al arrancar si `MONGODB_URI` está configurado pero la conexión falla (se acabó el fallback silencioso al disco efímero de Render) | ⬜ |
-| 2.3 | Fix del doble `decodeURIComponent` en `DELETE /:id/participants/:name` (crash con `%` en nombres) | ⬜ |
-| 2.4 | Validación real en `recordMatch`: scores enteros ≥ 0, `winnerTeam` ∈ {1,2}, miembros como strings → 400 en vez de coerción silenciosa | ⬜ |
-| 2.5 | IDs de partida con `crypto.randomUUID()` (sin colisiones prácticas) | ⬜ |
-| 2.6 | Eliminar los blocklists de ligas de prueba del código de producción (`store.js`); los tests usarán `DATA_DIR` temporal | ⬜ |
-| 2.7 | Unificar la agregación de rankings del backend en un módulo puro `src/utils/rankings.js` (elimina la copia entre `store.js` y `rankings.js`) y pasar a bucketing de mes en **UTC** | ⬜ |
+| 2.1 | `save()` persiste en MongoDB de forma **awaited** y solo la liga afectada; los errores llegan al cliente como 500 en vez de responder "success" antes de persistir | ✅ |
+| 2.2 | Fallo fatal al arrancar si `MONGODB_URI` está configurado pero la conexión falla (se acabó el fallback silencioso al disco efímero de Render) | ✅ |
+| 2.3 | Fix del doble `decodeURIComponent` en `DELETE /:id/participants/:name` (crash con `%` en nombres) | ✅ |
+| 2.4 | Validación real en `recordMatch`: scores enteros ≥ 0, `winnerTeam` ∈ {1,2}, miembros como strings → 400 en vez de coerción silenciosa | ✅ |
+| 2.5 | IDs de partida con `crypto.randomUUID()` (sin colisiones prácticas) | ✅ |
+| 2.6 | Eliminar los blocklists de ligas de prueba del código de producción (`store.js`); los tests usarán `DATA_DIR` temporal | ✅ |
+| 2.7 | Unificar la agregación de rankings del backend en un módulo puro `src/utils/rankings.js` (elimina la copia entre `store.js` y `rankings.js`) y pasar a bucketing de mes en **UTC** | ✅ |
 
 ## Fase 3 — Flutter: eliminación de duplicación
 

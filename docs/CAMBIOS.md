@@ -21,3 +21,23 @@
 
 **Nota de compatibilidad:** el APK publicado envía el PIN en sync y partidas, así que sigue funcionando. Dispositivos con un PIN local desincronizado recibirán un error claro de sync hasta unirse de nuevo con el PIN correcto (era el fallo de seguridad a corregir).
 
+---
+
+## Fase 2 — Integridad de datos del backend (2026-10-20)
+
+**Objetivo:** que una respuesta "success" signifique que los datos quedaron persistidos, y eliminar la duplicación de la agregación de rankings.
+
+| Archivo | Cambio |
+|---------|--------|
+| `backend/src/utils/rankings.js` *(nuevo)* | Módulo puro único de agregación (équipos/individuales, mensual/histórico, meses disponibles). **Bucketing de mes en UTC** para que el resultado no dependa de la TZ del servidor. Elimina la copia que existía entre `store.js` y `routes/rankings.js`. |
+| `backend/src/models/store.js` | `save()` ahora es **async y awaited**: la escritura en MongoDB se confirma antes de responder y sus errores se propagan (→ 500 al cliente, que conserva sus datos locales y reintenta). Solo se persiste la liga afectada en vez de todas en cada escritura. `deleteLeague` borra de Mongo primero (sin estados a medias). IDs de partida con `crypto.randomUUID()`. Eliminados los blocklists hardcodeados de ligas de prueba (LIG-1001, "Liga de Prueba CI", …) del código de producción. Colisión de ID de liga resuelta con regeneración en vez de sobrescritura silenciosa. |
+| `backend/src/middleware/asyncHandler.js` *(nuevo)* | Wrapper para que los handlers async propaguen errores a un manejador global (Express 4 no lo hace solo). |
+| `backend/src/routes/leagues.js` | Handlers async + **validación real**: scores enteros ≥ 0, `winnerTeam` ∈ {1,2}, miembros como strings no vacíos → 400 en vez de coerción silenciosa (`Number("banana") || 0`). |
+| `backend/src/routes/rankings.js` | Usa el módulo compartido; pierde 110 líneas de duplicación. |
+| `backend/src/server.js` | **Arranque con fallo fatal** si `MONGODB_URI` está definido pero la conexión falla: antes caía en silencio al archivo efímero de Render (datos perdidos en cada redeploy). Override de emergencia: `ALLOW_LOCAL_FALLBACK=true`. |
+| `render.yaml` | `healthCheckPath: /health` para que Render detecte servicios caídos. |
+| `backend/test/api.test.js` | Usa `DATA_DIR` temporal (deja de mutar el `leagues.json` commiteado), limpieza async y 3 tests nuevos: 400 por puntaje inválido, 400 por `winnerTeam` inválido y regresión del crash con `%` en nombres de participantes. |
+
+**Verificación:** 20/20 tests backend en verde; el árbol de trabajo ya no ensucia `backend/data/leagues.json`. Neto: **-159 líneas**.
+
+

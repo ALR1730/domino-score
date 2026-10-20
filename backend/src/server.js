@@ -87,6 +87,21 @@ async function startServer() {
     const connected = await mongo.connect();
     if (connected) {
       await store.loadFromMongo();
+    } else if (process.env.ALLOW_LOCAL_FALLBACK === "true") {
+      // Única forma de arrancar sin BD con MONGODB_URI configurado.
+      console.warn(
+        "⚠️  MongoDB no disponible y ALLOW_LOCAL_FALLBACK=true: arrancando en modo local. " +
+          "Los datos se guardarán en un archivo EFÍMERO (se pierde en cada redeploy)."
+      );
+    } else {
+      // Mejor no arrancar que arrancar escribiendo en el disco efímero de
+      // Render: cada partido registrado se perdería silenciosamente.
+      console.error(
+        "❌ MONGODB_URI está configurado pero la conexión a MongoDB falló.\n" +
+          "   Abortando el arranque para no perder datos en almacenamiento efímero.\n" +
+          "   Revisa las credenciales de Atlas o define ALLOW_LOCAL_FALLBACK=true para forzar modo local."
+      );
+      process.exit(1);
     }
   }
 

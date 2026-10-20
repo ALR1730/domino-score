@@ -1,5 +1,11 @@
 const assert = require("assert");
 const http = require("http");
+const os = require("os");
+const path = require("path");
+
+// Directorio de datos TEMPORAL para no mutar backend/data/leagues.json
+process.env.DATA_DIR = path.join(os.tmpdir(), `domino-test-${process.pid}`);
+
 const app = require("../src/server");
 const {
   extractMembers,
@@ -269,13 +275,67 @@ async function runTests() {
     assert.strictEqual(partNoPin.status, 401);
     console.log("   ✅ Participante sin PIN rechazado.\n");
 
+    // 18. Validación: puntajes inválidos deben devolver 400
+    console.log("18. Test POST /api/leagues/:id/matches (Puntaje inválido -> 400)...");
+    const badScore = await request(
+      server,
+      { method: "POST", path: `/api/leagues/${secId}/matches` },
+      {
+        pin: "4321",
+        team1Members: ["Ana", "Beto"],
+        team2Members: ["Carlos", "Diana"],
+        score1: "banana",
+        score2: -5,
+        winnerTeam: 1,
+      }
+    );
+    assert.strictEqual(badScore.status, 400);
+    console.log("   ✅ Puntajes inválidos rechazados con 400.\n");
+
+    // 19. Validación: winnerTeam inválido debe devolver 400
+    console.log("19. Test POST /api/leagues/:id/matches (winnerTeam inválido -> 400)...");
+    const badWinner = await request(
+      server,
+      { method: "POST", path: `/api/leagues/${secId}/matches` },
+      {
+        pin: "4321",
+        team1Members: ["Ana", "Beto"],
+        team2Members: ["Carlos", "Diana"],
+        score1: 100,
+        score2: 50,
+        winnerTeam: 3,
+      }
+    );
+    assert.strictEqual(badWinner.status, 400);
+    console.log("   ✅ winnerTeam inválido rechazado con 400.\n");
+
+    // 20. Regresión: nombres de participante con "%" no deben romper el server
+    console.log("20. Test DELETE /api/leagues/:id/participants/:name (Nombre con '%')...");
+    const addPct = await request(
+      server,
+      { method: "POST", path: `/api/leagues/${secId}/participants` },
+      { name: "50% Juan", pin: "4321" }
+    );
+    assert.strictEqual(addPct.status, 200);
+    const delPct = await request(
+      server,
+      {
+        method: "DELETE",
+        path: `/api/leagues/${secId}/participants/${encodeURIComponent("50% Juan")}`,
+      },
+      { pin: "4321" }
+    );
+    assert.strictEqual(delPct.status, 200);
+    assert.ok(!delPct.body.participants.some((p) => p.includes("%")));
+    console.log("   ✅ Nombres con '%' manejados sin error.\n");
+
     // Limpieza: eliminar la liga de seguridad creada
     await request(server, { method: "DELETE", path: `/api/leagues/${secId}` }, { pin: "4321" });
 
     // Limpiar ligas de prueba generadas durante los tests
     const store = require("../src/models/store");
     store.leagues.clear();
-    store.save();
+    store.saveLocal();
 
     console.log("🎉 ¡TODAS LAS PRUEBAS AUTOMATIZADAS PASARON CON ÉXITO!");
     process.exit(0);
@@ -285,7 +345,7 @@ async function runTests() {
   } finally {
     const store = require("../src/models/store");
     store.leagues.clear();
-    store.save();
+    store.saveLocal();
     server.close();
   }
 }
