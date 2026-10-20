@@ -215,8 +215,9 @@ class Store {
         initialParticipants: leagueData.participants || [],
       });
     } else {
+      // El PIN almacenado NUNCA se modifica desde sync: es el secreto que
+      // autoriza a unirse/eliminar. (La validación del PIN ocurre en la ruta.)
       if (leagueData.name && leagueData.name.trim()) league.name = leagueData.name.trim();
-      if (leagueData.pin && leagueData.pin.trim()) league.pin = leagueData.pin.trim();
       if (Array.isArray(leagueData.participants)) {
         for (const p of leagueData.participants) {
           this.addParticipant(id, p);

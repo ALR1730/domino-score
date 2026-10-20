@@ -115,6 +115,7 @@ async function runTests() {
       server,
       { method: "POST", path: `/api/leagues/${createdLeague.id}/matches` },
       {
+        pin: "8888",
         team1DisplayName: "Ana & Beto",
         team2DisplayName: "Carlos & Diana",
         team1Members: ["Ana", "Beto"],
@@ -201,6 +202,75 @@ async function runTests() {
     // Verificar que solo ligas oficiales están en el ranking
     assert.ok(countBefore >= 2);
     console.log("   ✅ Verificado: Solo las ligas oficiales afectan el ranking global.\n");
+
+    // 13. Seguridad: GET /api/leagues/:id NO debe exponer el PIN
+    console.log("13. Test GET /api/leagues/:id (No expone el PIN)...");
+    const createSec = await request(
+      server,
+      { method: "POST", path: "/api/leagues" },
+      { name: "Liga Seguridad Test", pin: "4321", initialParticipants: ["Ana", "Beto"] }
+    );
+    assert.strictEqual(createSec.status, 201);
+    const secId = createSec.body.league.id;
+    const getRes = await request(server, { method: "GET", path: `/api/leagues/${secId}` });
+    assert.strictEqual(getRes.status, 200);
+    assert.strictEqual(getRes.body.league.pin, undefined, "El PIN no debe aparecer en GET /:id");
+    console.log("   ✅ GET /:id no devuelve el PIN.\n");
+
+    // 14. Seguridad: sync con PIN incorrecto debe rechazarse (401)
+    console.log("14. Test POST /api/leagues/sync (Rechazo con PIN inválido)...");
+    const syncFail = await request(
+      server,
+      { method: "POST", path: "/api/leagues/sync" },
+      { id: secId, name: "Liga Seguridad Test", pin: "0000", matches: [] }
+    );
+    assert.strictEqual(syncFail.status, 401);
+    console.log("   ✅ Sync con PIN inválido rechazado.\n");
+
+    // 15. Seguridad: sync con PIN correcto no debe sobrescribir el PIN guardado
+    console.log("15. Test POST /api/leagues/sync (No sobrescribe el PIN)...");
+    const syncOk = await request(
+      server,
+      { method: "POST", path: "/api/leagues/sync" },
+      { id: secId, name: "Liga Seguridad Test v2", pin: "4321", matches: [] }
+    );
+    assert.strictEqual(syncOk.status, 200);
+    const joinAfterSync = await request(
+      server,
+      { method: "POST", path: "/api/leagues/join" },
+      { nameOrId: secId, pin: "4321" }
+    );
+    assert.strictEqual(joinAfterSync.status, 200, "El PIN original debe seguir vigente tras el sync");
+    console.log("   ✅ El PIN original se conserva tras sincronizar.\n");
+
+    // 16. Seguridad: registrar partida sin PIN debe rechazarse (401)
+    console.log("16. Test POST /api/leagues/:id/matches (Rechazo sin PIN)...");
+    const matchNoPin = await request(
+      server,
+      { method: "POST", path: `/api/leagues/${secId}/matches` },
+      {
+        team1Members: ["Ana", "Beto"],
+        team2Members: ["Carlos", "Diana"],
+        score1: 100,
+        score2: 50,
+        winnerTeam: 1,
+      }
+    );
+    assert.strictEqual(matchNoPin.status, 401);
+    console.log("   ✅ Partida sin PIN rechazada.\n");
+
+    // 17. Seguridad: agregar participante sin PIN debe rechazarse (401)
+    console.log("17. Test POST /api/leagues/:id/participants (Rechazo sin PIN)...");
+    const partNoPin = await request(
+      server,
+      { method: "POST", path: `/api/leagues/${secId}/participants` },
+      { name: "Efraín" }
+    );
+    assert.strictEqual(partNoPin.status, 401);
+    console.log("   ✅ Participante sin PIN rechazado.\n");
+
+    // Limpieza: eliminar la liga de seguridad creada
+    await request(server, { method: "DELETE", path: `/api/leagues/${secId}` }, { pin: "4321" });
 
     // Limpiar ligas de prueba generadas durante los tests
     const store = require("../src/models/store");

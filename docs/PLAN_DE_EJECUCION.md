@@ -17,14 +17,14 @@
 
 | # | Tarea | Estado |
 |---|-------|--------|
-| 1.1 | `GET /api/leagues/:id` deja de devolver el `pin` en la respuesta | ⬜ |
-| 1.2 | `POST /api/leagues/sync` exige PIN válido para ligas existentes y nunca sobrescribe el PIN almacenado | ⬜ |
-| 1.3 | `POST /api/leagues/:id/matches` valida el PIN (el cliente ya lo envía) | ⬜ |
-| 1.4 | Endpoints de participantes exigen PIN | ⬜ |
-| 1.5 | CORS restringido a lista de orígenes permitidos (app web + dev), requests sin `Origin` (APK) siguen funcionando | ⬜ |
-| 1.6 | Deshabilitar `X-Powered-By` y añadir cabeceras básicas de seguridad | ⬜ |
-| 1.7 | Rate limiting simple en memoria para endpoints con PIN (join/delete) | ⬜ |
-| 1.8 | `/health` reduce la información expuesta | ⬜ |
+| 1.1 | `GET /api/leagues/:id` deja de devolver el `pin` en la respuesta | ✅ |
+| 1.2 | `POST /api/leagues/sync` exige PIN válido para ligas existentes y nunca sobrescribe el PIN almacenado | ✅ |
+| 1.3 | `POST /api/leagues/:id/matches` valida el PIN (el cliente ya lo envía) | ✅ |
+| 1.4 | Endpoints de participantes exigen PIN | ✅ |
+| 1.5 | CORS restringido a lista de orígenes permitidos (app web + dev), requests sin `Origin` (APK) siguen funcionando | ✅ |
+| 1.6 | Deshabilitar `X-Powered-By` y añadir cabeceras básicas de seguridad | ✅ |
+| 1.7 | Rate limiting simple en memoria para endpoints con PIN (join/delete) | ✅ |
+| 1.8 | `/health` reduce la información expuesta | ✅ |
 
 ## Fase 2 — Integridad de datos del backend
 
