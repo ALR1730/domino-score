@@ -21,7 +21,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.gameState.metaPuntos.toString());
+    _controller =
+        TextEditingController(text: widget.gameState.metaPuntos.toString());
   }
 
   @override
@@ -58,7 +59,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
             const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.flag_outlined, size: 20, color: AppColors.emerald400),
+                Icon(Icons.flag_outlined,
+                    size: 20, color: AppColors.emerald400),
                 SizedBox(width: 8),
                 Text(
                   'Meta de Puntuación',
@@ -106,7 +108,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                     side: BorderSide(
-                      color: isSelected ? AppColors.emerald500 : AppColors.slate700,
+                      color: isSelected
+                          ? AppColors.emerald500
+                          : AppColors.slate700,
                     ),
                   ),
                   onSelected: (selected) {
@@ -137,7 +141,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 fillColor: AppColors.slate950,
                 hintText: '200',
                 hintStyle: const TextStyle(color: AppColors.slate600),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                contentPadding:
+                    const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: const BorderSide(color: AppColors.slate700),
@@ -148,7 +153,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: AppColors.emerald500, width: 2),
+                  borderSide:
+                      const BorderSide(color: AppColors.emerald500, width: 2),
                 ),
               ),
               onChanged: (_) => setState(() {}),

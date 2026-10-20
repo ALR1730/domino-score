@@ -28,8 +28,7 @@ class LeaderboardService extends ChangeNotifier {
   List<TeamStats> get teams => _teams.values.toList();
   List<PlayerStats> get players => _players.values.toList();
 
-  List<TeamStats> get teamsRanked =>
-      RankingCalculator.sortTeams(_teams.values);
+  List<TeamStats> get teamsRanked => RankingCalculator.sortTeams(_teams.values);
 
   List<PlayerStats> get playersRanked =>
       RankingCalculator.sortPlayers(_players.values);

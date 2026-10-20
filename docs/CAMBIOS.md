@@ -98,4 +98,21 @@
 
 **Verificación:** `flutter analyze` sin issues; **53 tests** de Flutter y **21 tests** del backend, todos en verde.
 
+---
+
+## Fase 6 — Pulido final (2026-10-20)
+
+**Objetivo:** cerrar los detalles de configuración, documentación y calidad que quedaron pendientes en la revisión inicial.
+
+| Tarea | Archivo | Cambio |
+|-------|---------|--------|
+| 6.1 | `pubspec.yaml` | Se quita `cupertino_icons` (sin un solo uso en el código), el constraint de SDK sube a `>=3.6.0` (mínimo real: la UI usa `Color.withValues`, Flutter 3.27 / Dart 3.6) y `flutter_lints` pasa a `^5.0.0`. |
+| 6.2 | `analysis_options.yaml` + todo `lib/` y `test/` | Se activan reglas adicionales: `prefer_final_locals`, `prefer_final_in_for_each`, `avoid_slow_async_io`, `avoid_type_to_string`, `cancel_subscriptions`, `close_sinks`, `comment_references`, `directives_ordering`, `prefer_single_quotes`, `sort_child_properties_last`, `unawaited_futures`, `use_super_parameters`. Se corrigieron las violaciones reales (`directives_ordering` en 9 archivos, `unawaited(_syncMatchToServer(...))`) y se aplicó **`dart format` a todo el repo** (26 archivos reformateados). Se descartó `require_trailing_commas` por ser incompatible con el comportamiento por defecto de `dart format` (generaba 274 avisos de ruido). |
+| 6.3 | `lib/main.dart` | Se elimina `fontFamily: 'Roboto'` hardcodeado: la fuente no estaba declarada en `pubspec.yaml`, así que se usa la fuente por defecto de la plataforma. |
+| 6.4 | `lib/widgets/league_dialogs.dart`, `lib/services/league_service.dart`, `backend/src/routes/leagues.js`, `backend/src/models/store.js` | Los PINs por defecto pasan de `1234` (adivinable) a **4 dígitos aleatorios**, en cliente y servidor. `POST /api/leagues` ahora devuelve el `pin` en la **respuesta** (igual que `/join`) para que el creador lo conozca, pero **nunca** dentro del objeto `league` (`toSafeLeague` sigue eliminándolo). El servicio Flutter conserva el PIN local aunque el servidor no lo devuelva en el objeto. |
+| 6.5 | `android/app/src/main/AndroidManifest.xml`, `android/app/build.gradle.kts`, `README.md` | `usesCleartextTraffic="false"` (todo el tráfico es HTTPS). Se documenta la firma de release pendiente en `build.gradle.kts` y en el README (keystore, `key.properties`, secrets de CI). |
+| 6.6 | `README.md`, `docs/archive/` | README actualizado: se elimina la afirmación falsa de "URL del servidor configurable", se añade la sección de **Seguridad** (PIN aleatorio, PIN nunca expuesto salvo creación/join, CORS/cabeceras/rate limit), una de **Pruebas** y una de **Arquitectura** con enlaces a `docs/`. El `walkthrough.md` obsoleto (migración web→Flutter) se archiva en `docs/archive/walkthrough-flutter-migracion.md`. |
+
+**Verificación:** `flutter analyze` sin issues; **54 tests** de Flutter y **22 tests** del backend en verde tras los cambios de PIN.
+
 

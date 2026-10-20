@@ -1,7 +1,9 @@
 class NameParser {
   static String removeDiacritics(String str) {
-    const withDia = 'ÀÁÂÃÄÅàáâãäåÒÓÔÕÕÖØòóôõöøÈÉÊËèéêëðÇçÐÌÍÎÏìíîïÙÚÛÜùúûüÑñŠšŸÿýŽž';
-    const defaultDia = 'AAAAAAaaaaaaOOOOOOOooooooEEEEeeeeeCcDIIIIiiiiUUUUuuuuNnSsYyyZz';
+    const withDia =
+        'ÀÁÂÃÄÅàáâãäåÒÓÔÕÕÖØòóôõöøÈÉÊËèéêëðÇçÐÌÍÎÏìíîïÙÚÛÜùúûüÑñŠšŸÿýŽž';
+    const defaultDia =
+        'AAAAAAaaaaaaOOOOOOOooooooEEEEeeeeeCcDIIIIiiiiUUUUuuuuNnSsYyyZz';
 
     var result = str;
     for (int i = 0; i < withDia.length; i++) {
@@ -17,7 +19,8 @@ class NameParser {
     if (clean.isEmpty) return [];
 
     // Separadores comunes: ' y ', ' e ', ' & ', ' / ', ' - ', ',', ' + ', ' and '
-    final regex = RegExp(r'\s+(?:y|e|and|&|\+|\/|-)\s+|[,/+\-&]', caseSensitive: false);
+    final regex =
+        RegExp(r'\s+(?:y|e|and|&|\+|\/|-)\s+|[,/+\-&]', caseSensitive: false);
     final parts = clean
         .split(regex)
         .map((p) => p.trim())
@@ -98,7 +101,10 @@ class TeamStats {
     return TeamStats(
       key: map['key'] as String? ?? '',
       displayName: map['displayName'] as String? ?? '',
-      members: (map['members'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      members: (map['members'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
       wins: map['wins'] as int? ?? 0,
       matchesPlayed: map['matchesPlayed'] as int? ?? 0,
       totalPoints: map['totalPoints'] as int? ?? 0,

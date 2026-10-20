@@ -49,7 +49,8 @@ class RoundsHistoryWidget extends StatelessWidget {
 
               // Game Status Pill
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
                   color: isGameOver
                       ? AppColors.amber950.withValues(alpha: 0.8)
@@ -66,7 +67,8 @@ class RoundsHistoryWidget extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: isGameOver ? FontWeight.bold : FontWeight.w500,
-                    color: isGameOver ? AppColors.amber300 : AppColors.emerald400,
+                    color:
+                        isGameOver ? AppColors.amber300 : AppColors.emerald400,
                   ),
                 ),
               ),

@@ -74,9 +74,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 decoration: BoxDecoration(
                   color: AppColors.rose950.withValues(alpha: 0.6),
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.rose600.withValues(alpha: 0.4)),
+                  border: Border.all(
+                      color: AppColors.rose600.withValues(alpha: 0.4)),
                 ),
-                child: const Icon(Icons.delete_forever, color: AppColors.rose300, size: 28),
+                child: const Icon(Icons.delete_forever,
+                    color: AppColors.rose300, size: 28),
               ),
               const SizedBox(height: 14),
               const Text(
@@ -129,7 +131,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text('Borrar Todo', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: const Text('Borrar Todo',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -170,7 +173,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         color: bgColor,
         shape: BoxShape.circle,
         border: Border.all(
-          color: position <= 3 ? Colors.white.withValues(alpha: 0.25) : AppColors.slate700,
+          color: position <= 3
+              ? Colors.white.withValues(alpha: 0.25)
+              : AppColors.slate700,
         ),
       ),
       alignment: Alignment.center,
@@ -195,7 +200,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         backgroundColor: AppColors.slate900,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: AppColors.slate300),
+          icon: const Icon(Icons.arrow_back_ios_new,
+              size: 18, color: AppColors.slate300),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(
@@ -208,18 +214,22 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.cloud_upload_outlined, size: 20, color: AppColors.emerald400),
+            icon: const Icon(Icons.cloud_upload_outlined,
+                size: 20, color: AppColors.emerald400),
             tooltip: 'Sincronizar clasificaciones con el servidor',
             onPressed: () async {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Sincronizando todas las ligas con el servidor...')),
+                const SnackBar(
+                    content: Text(
+                        'Sincronizando todas las ligas con el servidor...')),
               );
               await LeagueService().syncAllLeaguesWithServer();
               await _fetchServerRankings();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('✅ Clasificaciones sincronizadas en el servidor Render.'),
+                    content: Text(
+                        '✅ Clasificaciones sincronizadas en el servidor Render.'),
                     backgroundColor: AppColors.emerald600,
                   ),
                 );
@@ -228,13 +238,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           ),
           if (!_useServer)
             IconButton(
-              icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.rose300),
+              icon: const Icon(Icons.delete_outline,
+                  size: 20, color: AppColors.rose300),
               tooltip: 'Reiniciar clasificación local',
               onPressed: _confirmReset,
             )
           else
             IconButton(
-              icon: const Icon(Icons.refresh, size: 20, color: AppColors.slate300),
+              icon: const Icon(Icons.refresh,
+                  size: 20, color: AppColors.slate300),
               tooltip: 'Actualizar del servidor',
               onPressed: _fetchServerRankings,
             ),
@@ -258,7 +270,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               ),
               labelColor: Colors.white,
               unselectedLabelColor: AppColors.slate400,
-              labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              labelStyle:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               tabs: const [
                 Tab(
                   child: Row(
@@ -302,22 +315,33 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 7),
                           decoration: BoxDecoration(
-                            color: !_useServer ? AppColors.emerald600 : AppColors.slate900,
+                            color: !_useServer
+                                ? AppColors.emerald600
+                                : AppColors.slate900,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: !_useServer ? AppColors.emerald500 : AppColors.slate800),
+                            border: Border.all(
+                                color: !_useServer
+                                    ? AppColors.emerald500
+                                    : AppColors.slate800),
                           ),
                           alignment: Alignment.center,
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.phone_android, size: 14, color: !_useServer ? Colors.white : AppColors.slate400),
+                              Icon(Icons.phone_android,
+                                  size: 14,
+                                  color: !_useServer
+                                      ? Colors.white
+                                      : AppColors.slate400),
                               const SizedBox(width: 6),
                               Text(
                                 'En este Dispositivo',
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: !_useServer ? Colors.white : AppColors.slate400,
+                                  color: !_useServer
+                                      ? Colors.white
+                                      : AppColors.slate400,
                                 ),
                               ),
                             ],
@@ -336,22 +360,33 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 7),
                           decoration: BoxDecoration(
-                            color: _useServer ? AppColors.emerald600 : AppColors.slate900,
+                            color: _useServer
+                                ? AppColors.emerald600
+                                : AppColors.slate900,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: _useServer ? AppColors.emerald500 : AppColors.slate800),
+                            border: Border.all(
+                                color: _useServer
+                                    ? AppColors.emerald500
+                                    : AppColors.slate800),
                           ),
                           alignment: Alignment.center,
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.cloud_outlined, size: 14, color: _useServer ? Colors.white : AppColors.slate400),
+                              Icon(Icons.cloud_outlined,
+                                  size: 14,
+                                  color: _useServer
+                                      ? Colors.white
+                                      : AppColors.slate400),
                               const SizedBox(width: 6),
                               Text(
                                 'En el Servidor 🌐',
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: _useServer ? Colors.white : AppColors.slate400,
+                                  color: _useServer
+                                      ? Colors.white
+                                      : AppColors.slate400,
                                 ),
                               ),
                             ],
@@ -373,15 +408,19 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                     filled: true,
                     fillColor: AppColors.slate900,
                     hintText: 'Buscar por nombre o pareja...',
-                    hintStyle: const TextStyle(fontSize: 12, color: AppColors.slate500),
-                    prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.slate400),
+                    hintStyle: const TextStyle(
+                        fontSize: 12, color: AppColors.slate500),
+                    prefixIcon: const Icon(Icons.search,
+                        size: 18, color: AppColors.slate400),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.clear, size: 16, color: AppColors.slate400),
+                            icon: const Icon(Icons.clear,
+                                size: 16, color: AppColors.slate400),
                             onPressed: () => _searchController.clear(),
                           )
                         : null,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                    contentPadding: const EdgeInsets.symmetric(
+                        vertical: 10, horizontal: 14),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: AppColors.slate800),
@@ -423,7 +462,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           children: [
             CircularProgressIndicator(color: AppColors.emerald400),
             SizedBox(height: 12),
-            Text('Consultando clasificaciones del servidor Render...', style: TextStyle(color: AppColors.slate400, fontSize: 12)),
+            Text('Consultando clasificaciones del servidor Render...',
+                style: TextStyle(color: AppColors.slate400, fontSize: 12)),
           ],
         ),
       );
@@ -432,7 +472,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     final filtered = allTeams.where((t) {
       if (_searchQuery.isEmpty) return true;
       final matchDisplay = t.displayName.toLowerCase().contains(_searchQuery);
-      final matchMembers = t.members.any((m) => m.toLowerCase().contains(_searchQuery));
+      final matchMembers =
+          t.members.any((m) => m.toLowerCase().contains(_searchQuery));
       return matchDisplay || matchMembers;
     }).toList();
 
@@ -443,7 +484,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.emoji_events_outlined, size: 48, color: AppColors.slate700),
+              const Icon(Icons.emoji_events_outlined,
+                  size: 48, color: AppColors.slate700),
               const SizedBox(height: 12),
               Text(
                 _searchQuery.isEmpty
@@ -479,7 +521,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
             color: AppColors.slate900,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: rank == 1 ? AppColors.amber600.withValues(alpha: 0.6) : AppColors.slate800,
+              color: rank == 1
+                  ? AppColors.amber600.withValues(alpha: 0.6)
+                  : AppColors.slate800,
             ),
           ),
           child: Row(
@@ -515,11 +559,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                     decoration: BoxDecoration(
                       color: AppColors.emerald950.withValues(alpha: 0.7),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.emerald500.withValues(alpha: 0.4)),
+                      border: Border.all(
+                          color: AppColors.emerald500.withValues(alpha: 0.4)),
                     ),
                     child: Text(
                       '${team.wins} V',
@@ -555,12 +601,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           children: [
             CircularProgressIndicator(color: AppColors.emerald400),
             SizedBox(height: 12),
-            Text('Consultando jugadores del servidor Render...', style: TextStyle(color: AppColors.slate400, fontSize: 12)),
+            Text('Consultando jugadores del servidor Render...',
+                style: TextStyle(color: AppColors.slate400, fontSize: 12)),
           ],
         ),
       );
     }
-    final allPlayers = _useServer ? (_serverPlayers ?? []) : _service.playersRanked;
+    final allPlayers =
+        _useServer ? (_serverPlayers ?? []) : _service.playersRanked;
     final filtered = allPlayers.where((p) {
       if (_searchQuery.isEmpty) return true;
       return p.name.toLowerCase().contains(_searchQuery);
@@ -573,7 +621,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.person_search_outlined, size: 48, color: AppColors.slate700),
+              const Icon(Icons.person_search_outlined,
+                  size: 48, color: AppColors.slate700),
               const SizedBox(height: 12),
               Text(
                 _searchQuery.isEmpty
@@ -603,7 +652,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
             color: AppColors.slate900,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: rank == 1 ? AppColors.amber600.withValues(alpha: 0.6) : AppColors.slate800,
+              color: rank == 1
+                  ? AppColors.amber600.withValues(alpha: 0.6)
+                  : AppColors.slate800,
             ),
           ),
           child: Row(
@@ -638,11 +689,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                     decoration: BoxDecoration(
                       color: AppColors.indigo950.withValues(alpha: 0.7),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.indigo500.withValues(alpha: 0.4)),
+                      border: Border.all(
+                          color: AppColors.indigo500.withValues(alpha: 0.4)),
                     ),
                     child: Text(
                       '${player.wins} V',

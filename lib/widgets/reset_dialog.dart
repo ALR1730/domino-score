@@ -29,7 +29,8 @@ class ResetConfirmDialog extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.rose950.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.rose600.withValues(alpha: 0.4)),
+                border:
+                    Border.all(color: AppColors.rose600.withValues(alpha: 0.4)),
               ),
               child: const Icon(
                 Icons.refresh,

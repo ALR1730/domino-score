@@ -45,6 +45,9 @@ router.get("/", (req, res) => {
   res.json({ success: true, leagues });
 });
 
+// Genera un PIN de 4 dígitos aleatorio (nunca el adivinable "1234").
+const randomPin = () => String(1000 + Math.floor(Math.random() * 9000));
+
 // POST /api/leagues - Crear nueva liga
 router.post("/", asyncHandler(async (req, res) => {
   const { id, name, pin, initialParticipants } = req.body;
@@ -52,14 +55,21 @@ router.post("/", asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, error: "El nombre de la liga es obligatorio." });
   }
 
+  const requestedPin = pin && String(pin).trim() ? String(pin).trim() : randomPin();
+
   const league = await store.createLeague({
     id,
     name,
-    pin: pin || "1234",
+    pin: requestedPin,
     initialParticipants: initialParticipants || [],
   });
 
-  res.status(201).json({ success: true, league: toSafeLeague(league) });
+  // El creador (única vez, igual que /join) recibe el PIN que quedó guardado.
+  res.status(201).json({
+    success: true,
+    league: toSafeLeague(league),
+    pin: league.pin,
+  });
 }));
 
 // POST /api/leagues/sync - Sincronizar liga completa y todas sus partidas.

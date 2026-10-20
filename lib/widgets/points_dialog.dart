@@ -144,7 +144,8 @@ class _PointsDialogState extends State<PointsDialog> {
                 fillColor: AppColors.slate950,
                 hintText: '0',
                 hintStyle: const TextStyle(color: AppColors.slate600),
-                contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                contentPadding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: const BorderSide(color: AppColors.slate700),
@@ -155,7 +156,8 @@ class _PointsDialogState extends State<PointsDialog> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: AppColors.emerald500, width: 2),
+                  borderSide:
+                      const BorderSide(color: AppColors.emerald500, width: 2),
                 ),
               ),
             ),
@@ -212,10 +214,12 @@ class _PointsDialogState extends State<PointsDialog> {
                 if (isEditing) ...[
                   IconButton(
                     onPressed: _delete,
-                    icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.rose300),
+                    icon: const Icon(Icons.delete_outline,
+                        size: 20, color: AppColors.rose300),
                     style: IconButton.styleFrom(
                       backgroundColor: AppColors.rose950.withValues(alpha: 0.5),
-                      side: BorderSide(color: AppColors.rose600.withValues(alpha: 0.4)),
+                      side: BorderSide(
+                          color: AppColors.rose600.withValues(alpha: 0.4)),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

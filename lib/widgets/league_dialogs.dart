@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
@@ -123,7 +125,13 @@ class _CreateLeagueDialog extends StatefulWidget {
 
 class _CreateLeagueDialogState extends State<_CreateLeagueDialog> {
   final _nameController = TextEditingController();
-  final _pinController = TextEditingController(text: '1234');
+
+  /// PIN sugerido: 4 dígitos aleatorios. Evita el viejo "1234" por defecto que
+  /// hacía trivialmente adivinable cualquier liga recién creada.
+  static String _randomPin() => (1000 + Random().nextInt(9000)).toString();
+
+  late final TextEditingController _pinController =
+      TextEditingController(text: _randomPin());
   final _participantsController = TextEditingController();
   bool _isSubmitting = false;
 
@@ -151,7 +159,7 @@ class _CreateLeagueDialogState extends State<_CreateLeagueDialog> {
     try {
       await widget.onCreate(
         name: name,
-        pin: pin.isNotEmpty ? pin : '1234',
+        pin: pin.isNotEmpty ? pin : _randomPin(),
         participants: parts,
       );
     } finally {

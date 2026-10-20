@@ -1,8 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:domino_score/models/leaderboard_entry.dart';
 import 'package:domino_score/models/league.dart';
 import 'package:domino_score/services/ranking_calculator.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 LeagueMatch _match({
   required String id,
@@ -109,8 +108,17 @@ void main() {
     test('normaliza equipos escritos en distinto orden', () {
       final agg = <String, TeamStats>{};
       RankingCalculator.aggregateTeamsInto(agg, [
-        _match(id: '1', date: DateTime(2026, 1, 1), m1: ['Ana', 'Luis'], m2: ['X', 'Y']),
-        _match(id: '2', date: DateTime(2026, 1, 2), m1: ['Luis', 'Ana'], m2: ['X', 'Y'], winner: 1),
+        _match(
+            id: '1',
+            date: DateTime(2026, 1, 1),
+            m1: ['Ana', 'Luis'],
+            m2: ['X', 'Y']),
+        _match(
+            id: '2',
+            date: DateTime(2026, 1, 2),
+            m1: ['Luis', 'Ana'],
+            m2: ['X', 'Y'],
+            winner: 1),
       ]);
       expect(agg.length, 2, reason: 'ana_luis (con orden distinto) + x_y');
       expect(agg['ana_luis']!.matchesPlayed, 2);
@@ -121,8 +129,18 @@ void main() {
     test('acumula por jugador normalizado', () {
       final agg = <String, PlayerStats>{};
       RankingCalculator.aggregatePlayersInto(agg, [
-        _match(id: '1', date: DateTime(2026, 1, 1), m1: ['Efraín', 'Ana'], m2: ['Luis', 'Pedro'], winner: 2),
-        _match(id: '2', date: DateTime(2026, 1, 2), m1: ['Efrain', 'Ana'], m2: ['Luis', 'Pedro'], winner: 1),
+        _match(
+            id: '1',
+            date: DateTime(2026, 1, 1),
+            m1: ['Efraín', 'Ana'],
+            m2: ['Luis', 'Pedro'],
+            winner: 2),
+        _match(
+            id: '2',
+            date: DateTime(2026, 1, 2),
+            m1: ['Efrain', 'Ana'],
+            m2: ['Luis', 'Pedro'],
+            winner: 1),
       ]);
 
       expect(agg['efrain']!.matchesPlayed, 2);
@@ -153,7 +171,8 @@ void main() {
 
       RankingCalculator.mergeTeamsInto(target, source);
       expect(target['ana']!.wins, 2);
-      expect(identical(target['ana'], source['ana']), isFalse, reason: 'debe copiar, no aliasar');
+      expect(identical(target['ana'], source['ana']), isFalse,
+          reason: 'debe copiar, no aliasar');
 
       RankingCalculator.mergeTeamsInto(target, source);
       expect(target['ana']!.wins, 4);
@@ -164,7 +183,9 @@ void main() {
     test('mergePlayersInto suma victorias y partidas', () {
       final target = <String, PlayerStats>{};
       final source = <String, PlayerStats>{
-        'ana': PlayerStats(key: 'ana', name: 'Ana')..wins = 1..matchesPlayed = 2,
+        'ana': PlayerStats(key: 'ana', name: 'Ana')
+          ..wins = 1
+          ..matchesPlayed = 2,
       };
       RankingCalculator.mergePlayersInto(target, source);
       RankingCalculator.mergePlayersInto(target, source);

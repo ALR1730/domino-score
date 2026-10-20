@@ -1,10 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/leaderboard_entry.dart';
 import '../models/league.dart';
-
 import 'api_client.dart';
 import 'ranking_calculator.dart';
 
@@ -21,7 +23,8 @@ class LeagueService extends ChangeNotifier {
   final Map<String, League> _leagues = {};
   String? _activeLeagueId;
   bool _isLoaded = false;
-  bool _isSyncingServer = false; // Semáforo: evita syncs concurrentes con el servidor
+  bool _isSyncingServer =
+      false; // Semáforo: evita syncs concurrentes con el servidor
 
   bool get isLoaded => _isLoaded;
   List<League> get allLeagues => _leagues.values.toList();
@@ -58,10 +61,15 @@ class LeagueService extends ChangeNotifier {
     final randomDigits = (1000 + Random().nextInt(9000)).toString();
     final id = 'LIG-$randomDigits';
 
+    // PIN aleatorio si no se especifica: nunca "1234" adivinable.
+    final resolvedPin = cleanPin.isNotEmpty
+        ? cleanPin
+        : (1000 + Random().nextInt(9000)).toString();
+
     var league = League(
       id: id,
       name: cleanName.isNotEmpty ? cleanName : 'Liga $randomDigits',
-      pin: cleanPin.isNotEmpty ? cleanPin : '1234',
+      pin: resolvedPin,
       createdAt: DateTime.now(),
       participants: initialParticipants,
     );
@@ -82,14 +90,18 @@ class LeagueService extends ChangeNotifier {
       );
 
       if (serverLeague != null) {
+        // El servidor nunca devuelve el PIN en el objeto `league`: conservar
+        // el que eligió el usuario en este dispositivo.
         league = serverLeague;
+        league.pin = resolvedPin;
       }
     } catch (_) {}
 
     // Eliminar cualquier duplicado accidental previo con el mismo nombre y PIN sin partidas
     _leagues.removeWhere((key, existing) =>
         existing.id != league.id &&
-        existing.name.trim().toLowerCase() == league.name.trim().toLowerCase() &&
+        existing.name.trim().toLowerCase() ==
+            league.name.trim().toLowerCase() &&
         existing.pin.trim() == league.pin.trim() &&
         existing.matches.isEmpty);
 
@@ -114,7 +126,8 @@ class LeagueService extends ChangeNotifier {
       (l) =>
           l.id.toLowerCase() == search ||
           NameParser.removeDiacritics(l.name.trim().toLowerCase()) == search,
-      orElse: () => League(id: '', name: '', pin: '', createdAt: DateTime.now()),
+      orElse: () =>
+          League(id: '', name: '', pin: '', createdAt: DateTime.now()),
     );
 
     if (match.id.isNotEmpty) {
@@ -154,7 +167,8 @@ class LeagueService extends ChangeNotifier {
   }
 
   /// Elimina una liga del dispositivo y opcionalmente del servidor si se provee el PIN
-  Future<String?> deleteLeague(String id, {String? pin, bool deleteOnServer = true}) async {
+  Future<String?> deleteLeague(String id,
+      {String? pin, bool deleteOnServer = true}) async {
     if (deleteOnServer && pin != null && pin.trim().isNotEmpty) {
       final res = await ApiClient().deleteLeague(id, pin: pin.trim());
       if (res['success'] != true) {
@@ -202,7 +216,7 @@ class LeagueService extends ChangeNotifier {
     notifyListeners();
 
     // 3. Sincronizar con servidor en background (nunca bloquea ni sobreescribe datos locales)
-    _syncMatchToServer(league, match);
+    unawaited(_syncMatchToServer(league, match));
     return true;
   }
 

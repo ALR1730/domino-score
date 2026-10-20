@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/game_state.dart';
 import '../models/leaderboard_entry.dart';
 import '../models/league.dart';
@@ -6,9 +7,9 @@ import '../services/leaderboard_service.dart';
 import '../services/league_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/header_widget.dart';
-import '../widgets/team_card_widget.dart';
-import '../widgets/rounds_history_widget.dart';
 import '../widgets/reset_dialog.dart';
+import '../widgets/rounds_history_widget.dart';
+import '../widgets/team_card_widget.dart';
 
 class DominoGameScreen extends StatefulWidget {
   final GameState gameState;
@@ -94,7 +95,8 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
     bool recordedInLeague = false;
     final leagueId = widget.leagueId;
     if (widget.isLeagueMode && leagueId != null && leagueId.isNotEmpty) {
-      recordedInLeague = await LeagueService().recordMatchToLeague(leagueId, match);
+      recordedInLeague =
+          await LeagueService().recordMatchToLeague(leagueId, match);
     }
 
     if (!mounted) return;
@@ -144,20 +146,30 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
         backgroundColor: AppColors.slate900,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: AppColors.slate300),
+          icon: const Icon(Icons.arrow_back_ios_new,
+              size: 18, color: AppColors.slate300),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Row(
           children: [
             Icon(
-              widget.isLeagueMode ? Icons.emoji_events : Icons.sports_esports_outlined,
+              widget.isLeagueMode
+                  ? Icons.emoji_events
+                  : Icons.sports_esports_outlined,
               size: 18,
-              color: widget.isLeagueMode ? AppColors.amber300 : AppColors.emerald400,
+              color: widget.isLeagueMode
+                  ? AppColors.amber300
+                  : AppColors.emerald400,
             ),
             const SizedBox(width: 8),
             Text(
-              widget.isLeagueMode ? 'Partida Oficial de Liga' : 'Partida Casual',
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.white),
+              widget.isLeagueMode
+                  ? 'Partida Oficial de Liga'
+                  : 'Partida Casual',
+              style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.white),
             ),
           ],
         ),

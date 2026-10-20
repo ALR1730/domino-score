@@ -27,7 +27,9 @@ class DominoApp extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: AppColors.slate950,
-        fontFamily: 'Roboto',
+        // Sin `fontFamily` hardcodeado: 'Roboto' no está declarado en pubspec
+        // (no hay carpeta de fuentes), así que se usa la fuente por defecto
+        // de la plataforma.
         colorScheme: const ColorScheme.dark(
           primary: AppColors.emerald500,
           surface: AppColors.slate900,

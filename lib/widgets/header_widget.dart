@@ -40,7 +40,8 @@ class HeaderWidget extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: AppColors.emerald950.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.emerald500.withValues(alpha: 0.3)),
+                    border: Border.all(
+                        color: AppColors.emerald500.withValues(alpha: 0.3)),
                   ),
                   child: const Icon(
                     Icons.casino_outlined,
@@ -86,7 +87,8 @@ class HeaderWidget extends StatelessWidget {
             child: InkWell(
               onTap: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (ctx) => const LeaderboardScreen()),
+                  MaterialPageRoute(
+                      builder: (ctx) => const LeaderboardScreen()),
                 );
               },
               borderRadius: BorderRadius.circular(12),
@@ -95,7 +97,8 @@ class HeaderWidget extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppColors.amber950.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.amber600.withValues(alpha: 0.4)),
+                  border: Border.all(
+                      color: AppColors.amber600.withValues(alpha: 0.4)),
                 ),
                 child: const Icon(
                   Icons.emoji_events,

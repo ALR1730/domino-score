@@ -82,7 +82,8 @@ class RankingCalculator {
       for (final name in m.team1Members) {
         final key = NameParser.removeDiacritics(name.trim().toLowerCase());
         if (key.isEmpty) continue;
-        final p = target.putIfAbsent(key, () => PlayerStats(key: key, name: name));
+        final p =
+            target.putIfAbsent(key, () => PlayerStats(key: key, name: name));
         p.matchesPlayed += 1;
         if (m.winnerTeam == 1) p.wins += 1;
       }
@@ -90,7 +91,8 @@ class RankingCalculator {
       for (final name in m.team2Members) {
         final key = NameParser.removeDiacritics(name.trim().toLowerCase());
         if (key.isEmpty) continue;
-        final p = target.putIfAbsent(key, () => PlayerStats(key: key, name: name));
+        final p =
+            target.putIfAbsent(key, () => PlayerStats(key: key, name: name));
         p.matchesPlayed += 1;
         if (m.winnerTeam == 2) p.wins += 1;
       }
@@ -153,7 +155,8 @@ class RankingCalculator {
     return sortTeams(aggregate.values);
   }
 
-  static List<PlayerStats> rankPlayersFromMatches(Iterable<LeagueMatch> matches) {
+  static List<PlayerStats> rankPlayersFromMatches(
+      Iterable<LeagueMatch> matches) {
     final aggregate = <String, PlayerStats>{};
     aggregatePlayersInto(aggregate, matches);
     return sortPlayers(aggregate.values);

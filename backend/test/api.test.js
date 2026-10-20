@@ -161,7 +161,10 @@ test("flujo completo de liga: crear, unirse, registrar partida, rankings, elimin
   const league = create.body.league;
   assert.match(league.id, /^LIG-\d{4}$/);
   assert.equal(league.players && Object.keys(league.players).length, 4);
-  assert.doesNotMatch(JSON.stringify(create.body), /"pin"/, "la creación no devuelve el PIN");
+  // El objeto `league` nunca lleva el PIN; el creador sí lo recibe aparte
+  // (como en /join) para poder compartirlo con su grupo.
+  assert.equal(league.pin, undefined, "el objeto league no expone el PIN");
+  assert.equal(create.body.pin, "8888", "el creador recibe el PIN aparte");
 
   const joinOk = await api("POST", "/api/leagues/join", {
     nameOrId: league.id,
@@ -219,6 +222,19 @@ test("flujo completo de liga: crear, unirse, registrar partida, rankings, elimin
 test("crear liga sin nombre devuelve 400", async () => {
   const res = await api("POST", "/api/leagues", { name: "   ", pin: "1234" });
   assert.equal(res.status, 400);
+});
+
+test("crear liga sin PIN genera uno aleatorio de 4 dígitos", async () => {
+  const res = await api("POST", "/api/leagues", { name: "Pin Aleatorio" });
+  assert.equal(res.status, 201);
+  assert.match(res.body.pin, /^\d{4}$/);
+  assert.notEqual(res.body.pin, "1234", "nunca el PIN adivinable por defecto");
+
+  const join = await api("POST", "/api/leagues/join", {
+    nameOrId: res.body.league.id,
+    pin: res.body.pin,
+  });
+  assert.equal(join.status, 200, "el PIN devuelto debe servir para unirse");
 });
 
 test("registrar partida sin PIN devuelve 401", async () => {

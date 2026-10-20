@@ -26,8 +26,18 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
   DateTime? _selectedMonth;
 
   static const List<String> _monthNames = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre'
   ];
 
   @override
@@ -115,7 +125,8 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
                   padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   child: Row(
                     children: [
-                      Icon(Icons.calendar_month, color: AppColors.emerald400, size: 20),
+                      Icon(Icons.calendar_month,
+                          color: AppColors.emerald400, size: 20),
                       SizedBox(width: 8),
                       Text(
                         'Seleccionar Período de Ranking',
@@ -130,13 +141,16 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
                 ),
                 const Divider(color: AppColors.slate800),
                 ListTile(
-                  leading: const Icon(Icons.all_inclusive, color: AppColors.amber400),
+                  leading: const Icon(Icons.all_inclusive,
+                      color: AppColors.amber400),
                   title: const Text(
                     'Histórico Total (Todas las partidas)',
-                    style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                        color: AppColors.white, fontWeight: FontWeight.w600),
                   ),
                   trailing: _selectedMonth == null
-                      ? const Icon(Icons.check_circle, color: AppColors.emerald400)
+                      ? const Icon(Icons.check_circle,
+                          color: AppColors.emerald400)
                       : null,
                   onTap: () {
                     setState(() => _selectedMonth = null);
@@ -166,17 +180,24 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
                           leading: Icon(
                             Icons.calendar_today_outlined,
                             size: 18,
-                            color: isSelected ? AppColors.emerald400 : AppColors.slate400,
+                            color: isSelected
+                                ? AppColors.emerald400
+                                : AppColors.slate400,
                           ),
                           title: Text(
                             _formatMonthYear(dt),
                             style: TextStyle(
-                              color: isSelected ? AppColors.emerald400 : AppColors.white,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected
+                                  ? AppColors.emerald400
+                                  : AppColors.white,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                             ),
                           ),
                           trailing: isSelected
-                              ? const Icon(Icons.check_circle, color: AppColors.emerald400)
+                              ? const Icon(Icons.check_circle,
+                                  color: AppColors.emerald400)
                               : null,
                           onTap: () {
                             setState(() => _selectedMonth = dt);
@@ -206,17 +227,22 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
         backgroundColor: AppColors.slate900,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: AppColors.slate300),
+          icon: const Icon(Icons.arrow_back_ios_new,
+              size: 18, color: AppColors.slate300),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Row(
           children: [
-            const Icon(Icons.emoji_events_outlined, color: AppColors.amber400, size: 20),
+            const Icon(Icons.emoji_events_outlined,
+                color: AppColors.amber400, size: 20),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.white),
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.white),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -246,7 +272,8 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
                   ),
                   labelColor: Colors.white,
                   unselectedLabelColor: AppColors.slate400,
-                  labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  labelStyle: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.bold),
                   tabs: const [
                     Tab(
                       child: Row(
@@ -296,7 +323,9 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
     final currentIndex = _selectedMonth == null
         ? -1
         : available.indexWhere(
-            (d) => d.year == _selectedMonth!.year && d.month == _selectedMonth!.month,
+            (d) =>
+                d.year == _selectedMonth!.year &&
+                d.month == _selectedMonth!.month,
           );
 
     final canGoPrev = available.isNotEmpty &&
@@ -335,7 +364,9 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      _selectedMonth != null ? Icons.calendar_month : Icons.history,
+                      _selectedMonth != null
+                          ? Icons.calendar_month
+                          : Icons.history,
                       size: 16,
                       color: AppColors.emerald400,
                     ),
@@ -349,7 +380,8 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
                       ),
                     ),
                     const SizedBox(width: 6),
-                    const Icon(Icons.arrow_drop_down, size: 18, color: AppColors.slate400),
+                    const Icon(Icons.arrow_drop_down,
+                        size: 18, color: AppColors.slate400),
                   ],
                 ),
               ),
@@ -371,9 +403,9 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
   Widget _buildTeamsTab() {
     final teams = widget.leagueId != null
         ? (_service.getLeague(widget.leagueId!)?.getTeamsRankedForMonth(
-                year: _selectedMonth?.year,
-                month: _selectedMonth?.month,
-              ) ??
+                  year: _selectedMonth?.year,
+                  month: _selectedMonth?.month,
+                ) ??
             [])
         : _service.getGlobalTeamsRanked(
             year: _selectedMonth?.year,
@@ -404,92 +436,97 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
         return Container(
           key: ValueKey('rank_team_${t.key}'),
           margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.slate900,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: rank == 1
-                    ? AppColors.amber500.withValues(alpha: 0.6)
-                    : rank == 2
-                        ? const Color(0xFF94A3B8).withValues(alpha: 0.4)
-                        : rank == 3
-                            ? const Color(0xFFB45309).withValues(alpha: 0.4)
-                            : AppColors.slate800,
-              ),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.slate900,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: rank == 1
+                  ? AppColors.amber500.withValues(alpha: 0.6)
+                  : rank == 2
+                      ? const Color(0xFF94A3B8).withValues(alpha: 0.4)
+                      : rank == 3
+                          ? const Color(0xFFB45309).withValues(alpha: 0.4)
+                          : AppColors.slate800,
             ),
-            child: Row(
-              children: [
-                _buildRankBadge(rank),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        t.displayName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: AppColors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          Text(
-                            '${t.matchesPlayed} PJ (${t.wins}G - ${losses >= 0 ? losses : 0}P)',
-                            style: const TextStyle(fontSize: 11, color: AppColors.slate400),
-                          ),
-                          Text(
-                            '•  ${t.totalPoints} pts',
-                            style: const TextStyle(fontSize: 11, color: AppColors.emerald400),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+          ),
+          child: Row(
+            children: [
+              _buildRankBadge(rank),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.emerald950,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.emerald500.withValues(alpha: 0.3)),
-                      ),
-                      child: Text(
-                        '${t.wins} Vic',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.emerald400,
-                        ),
+                    Text(
+                      t.displayName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: AppColors.white,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${t.winRate.toStringAsFixed(0)}% efectividad',
-                      style: const TextStyle(fontSize: 10, color: AppColors.slate500),
+                    const SizedBox(height: 3),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        Text(
+                          '${t.matchesPlayed} PJ (${t.wins}G - ${losses >= 0 ? losses : 0}P)',
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.slate400),
+                        ),
+                        Text(
+                          '•  ${t.totalPoints} pts',
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.emerald400),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          );
-        },
-      );
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.emerald950,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: AppColors.emerald500.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      '${t.wins} Vic',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.emerald400,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${t.winRate.toStringAsFixed(0)}% efectividad',
+                    style: const TextStyle(
+                        fontSize: 10, color: AppColors.slate500),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildPlayersTab() {
     final players = widget.leagueId != null
         ? (_service.getLeague(widget.leagueId!)?.getPlayersRankedForMonth(
-                year: _selectedMonth?.year,
-                month: _selectedMonth?.month,
-              ) ??
+                  year: _selectedMonth?.year,
+                  month: _selectedMonth?.month,
+                ) ??
             [])
         : _service.getGlobalPlayersRanked(
             year: _selectedMonth?.year,
@@ -518,75 +555,79 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
         return Container(
           key: ValueKey('rank_player_${p.key}'),
           margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.slate900,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: rank == 1
-                    ? AppColors.amber500.withValues(alpha: 0.6)
-                    : rank == 2
-                        ? const Color(0xFF94A3B8).withValues(alpha: 0.4)
-                        : rank == 3
-                            ? const Color(0xFFB45309).withValues(alpha: 0.4)
-                            : AppColors.slate800,
-              ),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.slate900,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: rank == 1
+                  ? AppColors.amber500.withValues(alpha: 0.6)
+                  : rank == 2
+                      ? const Color(0xFF94A3B8).withValues(alpha: 0.4)
+                      : rank == 3
+                          ? const Color(0xFFB45309).withValues(alpha: 0.4)
+                          : AppColors.slate800,
             ),
-            child: Row(
-              children: [
-                _buildRankBadge(rank),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        p.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: AppColors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '${p.matchesPlayed} partidas (${p.wins}G - ${losses >= 0 ? losses : 0}P)',
-                        style: const TextStyle(fontSize: 11, color: AppColors.slate400),
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+          ),
+          child: Row(
+            children: [
+              _buildRankBadge(rank),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.indigo950,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.indigo500.withValues(alpha: 0.3)),
-                      ),
-                      child: Text(
-                        '${p.wins} Vic',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.indigo400,
-                        ),
+                    Text(
+                      p.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: AppColors.white,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
-                      '${p.winRate.toStringAsFixed(0)}% efectividad',
-                      style: const TextStyle(fontSize: 10, color: AppColors.slate500),
+                      '${p.matchesPlayed} partidas (${p.wins}G - ${losses >= 0 ? losses : 0}P)',
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.slate400),
                     ),
                   ],
                 ),
-              ],
-            ),
-          );
-        },
-      );
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.indigo950,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: AppColors.indigo500.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      '${p.wins} Vic',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.indigo400,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${p.winRate.toStringAsFixed(0)}% efectividad',
+                    style: const TextStyle(
+                        fontSize: 10, color: AppColors.slate500),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildRankBadge(int rank) {
@@ -625,7 +666,9 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
           : Text(
               '#$rank',
               style: const TextStyle(
-                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold),
             ),
     );
   }
@@ -790,7 +833,8 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
             height: height,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.15),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(8)),
               border: Border.all(color: color.withValues(alpha: 0.3)),
             ),
             alignment: Alignment.center,
@@ -843,14 +887,16 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
             const SizedBox(height: 20),
             if (_selectedMonth != null)
               OutlinedButton.icon(
-                icon: const Icon(Icons.history, size: 16, color: AppColors.emerald400),
+                icon: const Icon(Icons.history,
+                    size: 16, color: AppColors.emerald400),
                 label: const Text(
                   'Ver Histórico Total',
                   style: TextStyle(color: AppColors.emerald400),
                 ),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppColors.emerald600),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: () {
                   setState(() => _selectedMonth = null);
@@ -862,4 +908,3 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
     );
   }
 }
-

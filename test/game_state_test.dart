@@ -1,7 +1,6 @@
+import 'package:domino_score/models/game_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:domino_score/models/game_state.dart';
 
 /// Clave de prefs usada por [GameState.casual] (debe coincidir con el modelo).
 const String _casualKey = 'domino_casual_game_state_v2';
@@ -51,7 +50,9 @@ void main() {
       expect(state.ganadorNombre, state.nombreE1);
     });
 
-    test('empate al llegar ambos a la meta lo gana el último en anotar (ganador 1 tiene prioridad)', () {
+    test(
+        'empate al llegar ambos a la meta lo gana el último en anotar (ganador 1 tiene prioridad)',
+        () {
       final state = GameState(skipLoadFromPrefs: true, initialMetaPuntos: 30);
       state.agregarRonda(2, 30);
       state.agregarRonda(1, 30);
@@ -132,7 +133,9 @@ void main() {
       expect(state.consumeJustFinished(), isTrue);
     });
 
-    test('bajar la meta hasta el marcador actual no re-dispara un fin ya consumido', () {
+    test(
+        'bajar la meta hasta el marcador actual no re-dispara un fin ya consumido',
+        () {
       final state = GameState(skipLoadFromPrefs: true, initialMetaPuntos: 200);
       state.agregarRonda(1, 50);
       expect(state.consumeJustFinished(), isFalse);
@@ -166,7 +169,9 @@ void main() {
       expect(reloaded.totalE2, 10);
     });
 
-    test('una partida restaurada ya terminada NO se marca como recién terminada', () async {
+    test(
+        'una partida restaurada ya terminada NO se marca como recién terminada',
+        () async {
       SharedPreferences.setMockInitialValues({
         _casualKey: '{"metaPuntos":30,"nombreE1":"Ana","nombreE2":"Beto",'
             '"rondas":[{"equipo":1,"puntos":30}]}',
@@ -177,7 +182,8 @@ void main() {
 
       expect(state.isGameOver, isTrue);
       expect(state.consumeJustFinished(), isFalse,
-          reason: 'la línea base se fija al cargar: no re-registrar partidas antiguas');
+          reason:
+              'la línea base se fija al cargar: no re-registrar partidas antiguas');
     });
 
     test('nombre vacío no sobrescribe el valor actual', () {

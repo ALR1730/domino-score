@@ -182,7 +182,7 @@ class Store {
     const league = {
       id: leagueId,
       name: (name && name.trim()) || `Liga ${randomDigits}`,
-      pin: (pin && String(pin).trim()) || "1234",
+      pin: (pin && String(pin).trim()) || String(1000 + Math.floor(Math.random() * 9000)),
       createdAt: new Date().toISOString(),
       participants: cleanParticipants,
       teams: {},

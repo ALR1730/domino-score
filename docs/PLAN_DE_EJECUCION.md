@@ -5,6 +5,22 @@
 > (seguridad, integridad de datos, duplicación, código muerto, tests y pulido),
 > documentando cada cambio en [`CAMBIOS.md`](./CAMBIOS.md).
 
+## Estado
+
+**Todas las fases completadas (1→6).** Historial de commits:
+
+| Fase | Commit | Resumen |
+|------|--------|---------|
+| Docs | `37d96cc` | Plan + registro de cambios |
+| 1 | `ad737ea` | Seguridad del backend (PIN, CORS, rate limit, cabeceras) |
+| 2 | `88f4af1` | Integridad de datos (persistencia, validación, rankings) |
+| 3 | `2b22868` | Deduplicación en Flutter (diálogos + rankings) |
+| 4 | `8cbcc6b` | Código muerto y bugs (leaderboard, registro de partidas, fechas UTC) |
+| 5 | `4a87a8f` | Tests reales (Flutter + backend) y CI |
+| 6 | *(este commit)* | Pulido final (lints, PINs aleatorios, HTTPS, README) |
+
+---
+
 ## Convenciones
 
 - Cada fase se ejecuta completa, se documenta en `CAMBIOS.md` y se cierra con un commit.
@@ -73,12 +89,12 @@
 
 | # | Tarea | Estado |
 |---|-------|--------|
-| 6.1 | `pubspec.yaml`: quitar `cupertino_icons`, subir constraint de SDK al mínimo real, subir `flutter_lints` | ⬜ |
-| 6.2 | Activar reglas de lint adicionales en `analysis_options.yaml` y corregir las violaciones | ⬜ |
-| 6.3 | Quitar `fontFamily: 'Roboto'` hardcodeado (no declarado en pubspec) | ⬜ |
-| 6.4 | PINs por defecto aleatorios en los diálogos de creación (cliente y servidor) en lugar de `1234` | ⬜ |
-| 6.5 | `usesCleartextTraffic="false"` en el manifest de release; documentar firma de release | ⬜ |
-| 6.6 | Actualizar `README.md` (API, variables de entorno, versiones) y archivar `walkthrough.md` obsoleto | ⬜ |
+| 6.1 | `pubspec.yaml`: quitar `cupertino_icons`, subir constraint de SDK al mínimo real, subir `flutter_lints` | ✅ |
+| 6.2 | Activar reglas de lint adicionales en `analysis_options.yaml` y corregir las violaciones | ✅ |
+| 6.3 | Quitar `fontFamily: 'Roboto'` hardcodeado (no declarado en pubspec) | ✅ |
+| 6.4 | PINs por defecto aleatorios en los diálogos de creación (cliente y servidor) en lugar de `1234` | ✅ |
+| 6.5 | `usesCleartextTraffic="false"` en el manifest de release; documentar firma de release | ✅ |
+| 6.6 | Actualizar `README.md` (API, variables de entorno, versiones) y archivar `walkthrough.md` obsoleto | ✅ |
 
 ---
 

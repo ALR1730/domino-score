@@ -1,6 +1,7 @@
 import 'dart:convert';
-import 'leaderboard_entry.dart';
+
 import '../services/ranking_calculator.dart';
+import 'leaderboard_entry.dart';
 
 class LeagueMatch {
   final String id;
@@ -47,13 +48,18 @@ class LeagueMatch {
       // A hora local: el filtrado por mes de la UI es en el huso del usuario.
       // Las fechas antiguas sin Z (naïvas) se interpretan como locales, igual
       // que siempre.
-      date:
-          (DateTime.tryParse(map['date'] as String? ?? '') ?? DateTime.now())
-              .toLocal(),
+      date: (DateTime.tryParse(map['date'] as String? ?? '') ?? DateTime.now())
+          .toLocal(),
       team1DisplayName: map['team1DisplayName'] as String? ?? '',
       team2DisplayName: map['team2DisplayName'] as String? ?? '',
-      team1Members: (map['team1Members'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-      team2Members: (map['team2Members'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      team1Members: (map['team1Members'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      team2Members: (map['team2Members'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
       score1: map['score1'] as int? ?? 0,
       score2: map['score2'] as int? ?? 0,
       winnerTeam: map['winnerTeam'] as int? ?? 1,
@@ -140,7 +146,8 @@ class League {
   }
 
   void removeParticipant(String name) {
-    participants.removeWhere((p) => p.toLowerCase() == name.trim().toLowerCase());
+    participants
+        .removeWhere((p) => p.toLowerCase() == name.trim().toLowerCase());
   }
 
   void recordMatch(LeagueMatch match) {
@@ -181,14 +188,16 @@ class League {
     // Update individual players
     for (final m in match.team1Members) {
       final key = NameParser.removeDiacritics(m.trim().toLowerCase());
-      final player = players.putIfAbsent(key, () => PlayerStats(key: key, name: m));
+      final player =
+          players.putIfAbsent(key, () => PlayerStats(key: key, name: m));
       player.matchesPlayed += 1;
       if (match.winnerTeam == 1) player.wins += 1;
     }
 
     for (final m in match.team2Members) {
       final key = NameParser.removeDiacritics(m.trim().toLowerCase());
-      final player = players.putIfAbsent(key, () => PlayerStats(key: key, name: m));
+      final player =
+          players.putIfAbsent(key, () => PlayerStats(key: key, name: m));
       player.matchesPlayed += 1;
       if (match.winnerTeam == 2) player.wins += 1;
     }
@@ -233,8 +242,12 @@ class League {
       id: map['id'] as String? ?? '',
       name: map['name'] as String? ?? 'Liga',
       pin: map['pin'] as String? ?? '1234',
-      createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ?? DateTime.now(),
-      participants: (map['participants'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      participants: (map['participants'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
       teams: teamsMap,
       players: playersMap,
       matches: matchesList,
@@ -242,5 +255,6 @@ class League {
   }
 
   String toJson() => jsonEncode(toMap());
-  factory League.fromJson(String source) => League.fromMap(jsonDecode(source) as Map<String, dynamic>);
+  factory League.fromJson(String source) =>
+      League.fromMap(jsonDecode(source) as Map<String, dynamic>);
 }

@@ -32,7 +32,9 @@ class ModeSelectionScreen extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: AppColors.slate900,
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.emerald500.withValues(alpha: 0.4), width: 1.5),
+                        border: Border.all(
+                            color: AppColors.emerald500.withValues(alpha: 0.4),
+                            width: 1.5),
                         boxShadow: [
                           BoxShadow(
                             color: AppColors.emerald500.withValues(alpha: 0.15),
@@ -83,7 +85,8 @@ class ModeSelectionScreen extends StatelessWidget {
                     title: 'Modo Casual',
                     badgeText: 'Partida Rápida',
                     badgeColor: AppColors.emerald500,
-                    description: 'Juega una partida rápida al instante. Nombres libres, sin tablas de clasificación obligatorias.',
+                    description:
+                        'Juega una partida rápida al instante. Nombres libres, sin tablas de clasificación obligatorias.',
                     onTap: () {
                       final casualGameState = GameState.casual();
                       Navigator.of(context).push(
@@ -107,7 +110,8 @@ class ModeSelectionScreen extends StatelessWidget {
                     title: 'Modo Liga',
                     badgeText: 'Competitivo & Clave',
                     badgeColor: AppColors.amber600,
-                    description: 'Crea o únete a una liga con clave PIN. Registra participantes, arma parejas oficiales y compite por las tablas de clasificación.',
+                    description:
+                        'Crea o únete a una liga con clave PIN. Registra participantes, arma parejas oficiales y compite por las tablas de clasificación.',
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
@@ -128,16 +132,21 @@ class ModeSelectionScreen extends StatelessWidget {
                         ),
                       );
                     },
-                    icon: const Icon(Icons.public, size: 18, color: AppColors.emerald400),
+                    icon: const Icon(Icons.public,
+                        size: 18, color: AppColors.emerald400),
                     label: const Text(
                       'Ver Ranking General del Servidor',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.slate200),
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.slate200),
                     ),
                     style: OutlinedButton.styleFrom(
                       backgroundColor: AppColors.slate900,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       side: const BorderSide(color: AppColors.slate800),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
                     ),
                   ),
 
@@ -152,16 +161,21 @@ class ModeSelectionScreen extends StatelessWidget {
                         ),
                       );
                     },
-                    icon: const Icon(Icons.format_list_bulleted, size: 18, color: AppColors.indigo400),
+                    icon: const Icon(Icons.format_list_bulleted,
+                        size: 18, color: AppColors.indigo400),
                     label: const Text(
                       'Mis Ligas y Ligas en el Servidor',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.slate200),
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.slate200),
                     ),
                     style: OutlinedButton.styleFrom(
                       backgroundColor: AppColors.slate900,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       side: const BorderSide(color: AppColors.slate800),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
                     ),
                   ),
 
@@ -215,16 +229,19 @@ class ModeSelectionScreen extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: AppColors.slate950,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: iconColor.withValues(alpha: 0.3)),
+                      border:
+                          Border.all(color: iconColor.withValues(alpha: 0.3)),
                     ),
                     child: Icon(icon, size: 24, color: iconColor),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: badgeColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
+                      border:
+                          Border.all(color: badgeColor.withValues(alpha: 0.4)),
                     ),
                     child: Text(
                       badgeText,

@@ -82,16 +82,19 @@ class WinnerDialog extends StatelessWidget {
             // Badge de estado
             if (gameState.isLeagueMode)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.emerald950.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.emerald500.withValues(alpha: 0.4)),
+                  border: Border.all(
+                      color: AppColors.emerald500.withValues(alpha: 0.4)),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.emoji_events, size: 13, color: AppColors.emerald400),
+                    Icon(Icons.emoji_events,
+                        size: 13, color: AppColors.emerald400),
                     SizedBox(width: 5),
                     Text(
                       'Guardado en Ranking de Liga',
@@ -106,7 +109,8 @@ class WinnerDialog extends StatelessWidget {
               )
             else
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.slate800,
                   borderRadius: BorderRadius.circular(20),
@@ -115,7 +119,8 @@ class WinnerDialog extends StatelessWidget {
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.sports_esports_outlined, size: 13, color: AppColors.slate400),
+                    Icon(Icons.sports_esports_outlined,
+                        size: 13, color: AppColors.slate400),
                     SizedBox(width: 5),
                     Text(
                       'Partida Casual (No afecta ranking)',
@@ -223,10 +228,12 @@ class WinnerDialog extends StatelessWidget {
                   onPressed: () {
                     Navigator.of(context).pop();
                     Navigator.of(context).push(
-                      MaterialPageRoute(builder: (ctx) => const LeaderboardScreen()),
+                      MaterialPageRoute(
+                          builder: (ctx) => const LeaderboardScreen()),
                     );
                   },
-                  icon: const Icon(Icons.emoji_events, size: 16, color: AppColors.amber300),
+                  icon: const Icon(Icons.emoji_events,
+                      size: 16, color: AppColors.amber300),
                   label: const Text(
                     'Ver Tabla de Clasificación',
                     style: TextStyle(

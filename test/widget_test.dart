@@ -1,8 +1,9 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:domino_score/main.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('Dominó Score ModeSelection smoke test', (WidgetTester tester) async {
+  testWidgets('Dominó Score ModeSelection smoke test',
+      (WidgetTester tester) async {
     await tester.pumpWidget(const DominoApp());
     await tester.pumpAndSettle();
 

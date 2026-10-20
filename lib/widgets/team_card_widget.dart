@@ -73,9 +73,7 @@ class _TeamCardWidgetState extends State<TeamCardWidget> {
         color: AppColors.slate900,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isWinner
-              ? AppColors.amber300
-              : AppColors.slate800,
+          color: isWinner ? AppColors.amber300 : AppColors.slate800,
           width: isWinner ? 1.5 : 1.0,
         ),
         boxShadow: [

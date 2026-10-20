@@ -1,5 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:domino_score/models/league.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('Calcula correctamente rankings mensuales por parejas e individual', () {
@@ -88,7 +88,8 @@ void main() {
     // 5. Histórico Total (sin mes/año)
     final allTeams = league.getTeamsRankedForMonth();
     expect(allTeams.firstWhere((t) => t.displayName == 'Pedro & Luis').wins, 2);
-    expect(allTeams.firstWhere((t) => t.displayName == 'Carlos & Juan').wins, 1);
+    expect(
+        allTeams.firstWhere((t) => t.displayName == 'Carlos & Juan').wins, 1);
 
     // 6. Histórico Total cuando teams/players están vacíos (ej. tras sincronización del servidor)
     final syncedLeague = League(

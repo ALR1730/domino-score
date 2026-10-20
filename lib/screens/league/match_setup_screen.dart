@@ -73,7 +73,8 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
     if (!_isSelectionValid()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Debes seleccionar 4 jugadores distintos (2 por equipo).'),
+          content:
+              Text('Debes seleccionar 4 jugadores distintos (2 por equipo).'),
           backgroundColor: AppColors.rose600,
         ),
       );
@@ -156,12 +157,16 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
         backgroundColor: AppColors.slate900,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: AppColors.slate300),
+          icon: const Icon(Icons.arrow_back_ios_new,
+              size: 18, color: AppColors.slate300),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           'Nueva Partida: ${widget.league.name}',
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.white),
+          style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: AppColors.white),
         ),
       ),
       body: SingleChildScrollView(
@@ -176,16 +181,19 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.amber950.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.amber600.withValues(alpha: 0.6)),
+                  border: Border.all(
+                      color: AppColors.amber600.withValues(alpha: 0.6)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.info_outline, color: AppColors.amber300, size: 20),
+                    const Icon(Icons.info_outline,
+                        color: AppColors.amber300, size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'Se requieren al menos 4 participantes para una partida oficial de dominó por parejas. Tienes ${participants.length}.',
-                        style: const TextStyle(fontSize: 12, color: AppColors.amber300),
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.amber300),
                       ),
                     ),
                   ],
@@ -200,13 +208,16 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
                 Expanded(
                   child: TextField(
                     controller: _customPlayerController,
-                    style: const TextStyle(fontSize: 13, color: AppColors.white),
+                    style:
+                        const TextStyle(fontSize: 13, color: AppColors.white),
                     decoration: InputDecoration(
                       hintText: 'Agregar nuevo jugador a la liga...',
-                      hintStyle: const TextStyle(color: AppColors.slate500, fontSize: 12),
+                      hintStyle: const TextStyle(
+                          color: AppColors.slate500, fontSize: 12),
                       filled: true,
                       fillColor: AppColors.slate900,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: AppColors.slate800),
@@ -217,7 +228,8 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.emerald500),
+                        borderSide:
+                            const BorderSide(color: AppColors.emerald500),
                       ),
                     ),
                     onSubmitted: (_) => _addQuickParticipant(),
@@ -229,7 +241,8 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
                   icon: const Icon(Icons.add, size: 18),
                   style: IconButton.styleFrom(
                     backgroundColor: AppColors.emerald600,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ],
@@ -243,7 +256,8 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
               decoration: BoxDecoration(
                 color: AppColors.slate900,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.emerald500.withValues(alpha: 0.5)),
+                border: Border.all(
+                    color: AppColors.emerald500.withValues(alpha: 0.5)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,7 +303,8 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
               decoration: BoxDecoration(
                 color: AppColors.slate900,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.indigo500.withValues(alpha: 0.5)),
+                border: Border.all(
+                    color: AppColors.indigo500.withValues(alpha: 0.5)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,7 +357,10 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
                 children: [
                   const Text(
                     'Puntos para Ganar (Meta):',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.slate300),
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.slate300),
                   ),
                   const SizedBox(height: 10),
                   Wrap(
@@ -382,7 +400,8 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
                 backgroundColor: AppColors.emerald600,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
               ),
             ),
           ],

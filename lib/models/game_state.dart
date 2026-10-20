@@ -47,7 +47,9 @@ class GameState extends ChangeNotifier {
       // race conditions donde rondas de otra partida interfieren con el registro.
       _isLoaded = true;
     } else {
-      _loadFromPrefs(preserveCustomNames: initialNombreE1 != null || initialNombreE2 != null);
+      _loadFromPrefs(
+          preserveCustomNames:
+              initialNombreE1 != null || initialNombreE2 != null);
     }
   }
 
@@ -216,7 +218,9 @@ class GameState extends ChangeNotifier {
           _nombreE2 = data['nombreE2'] as String? ?? _nombreE2;
         }
         final rawRondas = data['rondas'] as List<dynamic>? ?? [];
-        _rondas = rawRondas.map((r) => Round.fromMap(r as Map<String, dynamic>)).toList();
+        _rondas = rawRondas
+            .map((r) => Round.fromMap(r as Map<String, dynamic>))
+            .toList();
         // Una partida restaurada desde prefs NO cuenta como "recién terminada":
         // la línea base evita re-registrar partidas antiguas al abrir la pantalla.
         _wasGameOver = isGameOver;

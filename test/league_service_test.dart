@@ -1,12 +1,11 @@
 import 'dart:convert';
 
+import 'package:domino_score/models/league.dart';
+import 'package:domino_score/services/league_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:domino_score/models/league.dart';
-import 'package:domino_score/services/league_service.dart';
 
 /// Clave de prefs de `LeagueService` (debe coincidir con el servicio).
 const String _leaguesKey = 'domino_leagues_registry_v1';
@@ -17,7 +16,8 @@ const String _activeKey = 'domino_active_league_id_v1';
 /// Nota: el singleton de [LeagueService] no expone un reset, así que cada test
 /// parte de una app recién creada (ver `setUp` con `setMockInitialValues`).
 http.Response _json(Object body, {int status = 200}) =>
-    http.Response(jsonEncode(body), status, headers: {'content-type': 'application/json'});
+    http.Response(jsonEncode(body), status,
+        headers: {'content-type': 'application/json'});
 
 String _seedLeague({
   required String id,
@@ -38,7 +38,8 @@ String _seedLeague({
   return jsonEncode([map]);
 }
 
-LeagueMatch _match({required String id, String date = '2026-03-15T12:00:00.000Z'}) =>
+LeagueMatch _match(
+        {required String id, String date = '2026-03-15T12:00:00.000Z'}) =>
     LeagueMatch(
       id: id,
       date: DateTime.parse(date),
@@ -64,7 +65,10 @@ void main() {
   group('LeagueService.createLeague', () {
     test('crea local y activa la liga, con ID LIG-####', () async {
       final league = await runWithFakeServer(
-        (requests) async => _json({'success': true, 'league': {'id': 'x'}}),
+        (requests) async => _json({
+          'success': true,
+          'league': {'id': 'x'}
+        }),
         () => service.createLeague(
           name: 'Liga Amigos',
           pin: '4321',
@@ -80,13 +84,33 @@ void main() {
       expect(league.players.length, 2);
     });
 
-    test('usa el valor por defecto "1234" si el PIN viene vacío', () async {
+    test('genera un PIN aleatorio de 4 dígitos si no se especifica', () async {
       final league = await service.createLeague(
         name: 'Sin Pin',
         pin: '   ',
         initialParticipants: [],
       );
-      expect(league.pin, '1234');
+      expect(league.pin, matches(RegExp(r'^\d{4}$')));
+      expect(league.pin, isNot('1234'), reason: 'nunca el viejo PIN adivinable');
+    });
+
+    test('conserva el PIN local aunque el servidor no lo devuelva', () async {
+      final league = await runWithFakeServer(
+        (request) async => _json({
+          'success': true,
+          // El backend nunca incluye el PIN dentro del objeto league.
+          'league': {'id': 'LIG-1234', 'name': 'Con Servidor'},
+          'pin': '4321',
+        }, status: 201),
+        () => service.createLeague(
+          name: 'Con Servidor',
+          pin: '4321',
+          initialParticipants: [],
+        ),
+      );
+
+      expect(league.pin, '4321');
+      expect(service.getLeague('LIG-1234')!.pin, '4321');
     });
   });
 
@@ -112,7 +136,8 @@ void main() {
       expect(error, contains('incorrecta'));
     });
 
-    test('busca en el servidor cuando la liga no está en el dispositivo', () async {
+    test('busca en el servidor cuando la liga no está en el dispositivo',
+        () async {
       final error = await runWithFakeServer(
         (request) async {
           if (request.url.path.endsWith('/join')) {
@@ -161,7 +186,8 @@ void main() {
       // Liga distinta (no activa) a la que se le registra la partida.
       final other = await runWithFakeServer(
         (requests) async => _json({'success': true, 'match': {}}),
-        () => service.createLeague(name: 'B', pin: '2222', initialParticipants: []),
+        () => service
+            .createLeague(name: 'B', pin: '2222', initialParticipants: []),
       );
       await service.setActiveLeague('LIG-1000');
 
@@ -178,7 +204,8 @@ void main() {
     });
 
     test('devuelve false si la liga ya no existe', () async {
-      final ok = await service.recordMatchToLeague('LIG-NO-EXISTE', _match(id: 'm-2'));
+      final ok =
+          await service.recordMatchToLeague('LIG-NO-EXISTE', _match(id: 'm-2'));
       expect(ok, isFalse);
     });
   });
@@ -191,7 +218,8 @@ void main() {
       });
       await service.resetForTesting();
 
-      final error = await service.deleteLeague('LIG-1000', deleteOnServer: false);
+      final error =
+          await service.deleteLeague('LIG-1000', deleteOnServer: false);
       expect(error, isNull);
       expect(service.getLeague('LIG-1000'), isNull);
       expect(service.activeLeagueId, isNull);
@@ -205,8 +233,10 @@ void main() {
       await service.resetForTesting();
 
       final error = await runWithFakeServer(
-        (request) async =>
-            _json({'success': false, 'error': 'PIN incorrecto para eliminar la liga.'}, status: 401),
+        (request) async => _json({
+          'success': false,
+          'error': 'PIN incorrecto para eliminar la liga.'
+        }, status: 401),
         () => service.deleteLeague('LIG-1000', pin: '0000'),
       );
 
@@ -324,7 +354,8 @@ void main() {
           containsAll(['ana_luis', 'marcos_pedro', 'sara_tom']));
 
       final march = service.getGlobalTeamsRanked(year: 2026, month: 3);
-      expect(march.map((t) => t.key), containsAll(['ana_luis', 'marcos_pedro']));
+      expect(
+          march.map((t) => t.key), containsAll(['ana_luis', 'marcos_pedro']));
       expect(
         march.firstWhere((t) => t.key == 'ana_luis').wins,
         1,
@@ -332,11 +363,15 @@ void main() {
 
       final months = service.getAvailableMonths();
       expect(months.length, 2);
-      expect(months.first.month, 4, reason: 'ordenados del más reciente al más antiguo');
+      expect(months.first.month, 4,
+          reason: 'ordenados del más reciente al más antiguo');
     });
 
-    test('el fallback usa estadísticas agregadas cuando la liga no tiene partidas', () async {
-      final league = jsonDecode(_seedLeague(id: 'A', name: 'A'))[0] as Map<String, dynamic>;
+    test(
+        'el fallback usa estadísticas agregadas cuando la liga no tiene partidas',
+        () async {
+      final league = jsonDecode(_seedLeague(id: 'A', name: 'A'))[0]
+          as Map<String, dynamic>;
       league['teams'] = {
         'ana_luis': {
           'key': 'ana_luis',
@@ -347,7 +382,9 @@ void main() {
           'totalPoints': 900,
         }
       };
-      SharedPreferences.setMockInitialValues({_leaguesKey: jsonEncode([league])});
+      SharedPreferences.setMockInitialValues({
+        _leaguesKey: jsonEncode([league])
+      });
       await service.resetForTesting();
 
       final teams = service.getGlobalTeamsRanked();

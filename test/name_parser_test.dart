@@ -1,20 +1,21 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:domino_score/models/leaderboard_entry.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('NameParser.extractMembers', () {
     test('separa con los separadores habituales', () {
       expect(NameParser.extractMembers('Juan y Pedro'), ['Juan', 'Pedro']);
       expect(NameParser.extractMembers('Ana & Luis'), ['Ana', 'Luis']);
-      expect(NameParser.extractMembers('Carlos / Marcos'), ['Carlos', 'Marcos']);
+      expect(
+          NameParser.extractMembers('Carlos / Marcos'), ['Carlos', 'Marcos']);
       expect(NameParser.extractMembers('Maria, Pedro'), ['Maria', 'Pedro']);
       expect(NameParser.extractMembers('Ana e Ines'), ['Ana', 'Ines']);
       expect(NameParser.extractMembers('Ana and Luis'), ['Ana', 'Luis']);
     });
 
     test('normaliza mayúsculas/minúsculas y espacios', () {
-      expect(NameParser.extractMembers('  jUAN   y   pEDRO '), ['Juan', 'Pedro']);
+      expect(
+          NameParser.extractMembers('  jUAN   y   pEDRO '), ['Juan', 'Pedro']);
     });
 
     test('devuelve el nombre completo si no hay separador', () {
