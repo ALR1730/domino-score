@@ -922,7 +922,8 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
   }
 
   Widget _buildLeagueMatchesHistoryTab(League league) {
-    final matches = league.matches;
+    // Ordenadas por fecha, de la más reciente a la más antigua.
+    final matches = league.matchesByDateDesc;
 
     if (matches.isEmpty) {
       return const Center(

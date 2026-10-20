@@ -265,6 +265,7 @@ class LeagueService extends ChangeNotifier {
           }
         }
         // Actualizar la referencia local preservando los datos locales
+        league.sortMatchesByDate();
         _leagues[league.id] = league;
         if (mergedAny) {
           await _saveData();
@@ -301,6 +302,7 @@ class LeagueService extends ChangeNotifier {
             league.matches.add(sm);
           }
         }
+        league.sortMatchesByDate();
         _leagues[league.id] = league;
       }
     }
@@ -373,6 +375,8 @@ class LeagueService extends ChangeNotifier {
         _leagues.clear();
         for (final item in decoded) {
           final l = League.fromMap(item as Map<String, dynamic>);
+          // Normaliza el orden persistido: más reciente primero.
+          l.sortMatchesByDate();
           _leagues[l.id] = l;
         }
 

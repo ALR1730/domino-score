@@ -114,6 +114,20 @@ class League {
           ? matches
           : matches.where((m) => m.date.year == year && m.date.month == month);
 
+  /// Partidas ordenadas por fecha, de la más reciente a la más antigua.
+  /// El orden no depende de cómo llegaron (locales o sincronizadas): se
+  /// recalcula siempre a partir de `date`.
+  List<LeagueMatch> get matchesByDateDesc {
+    final sorted = List<LeagueMatch>.of(matches);
+    sorted.sort((a, b) => b.date.compareTo(a.date));
+    return sorted;
+  }
+
+  /// Reordena `matches` en memoria de la más reciente a la más antigua.
+  void sortMatchesByDate() {
+    matches.sort((a, b) => b.date.compareTo(a.date));
+  }
+
   List<TeamStats> getTeamsRankedForMonth({int? year, int? month}) {
     final ranked =
         RankingCalculator.rankTeamsFromMatches(matchesForMonth(year, month));
