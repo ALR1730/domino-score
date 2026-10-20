@@ -6,6 +6,7 @@ import '../models/leaderboard_entry.dart';
 import '../models/league.dart';
 
 import 'api_client.dart';
+import 'ranking_calculator.dart';
 
 class LeagueService extends ChangeNotifier {
   static final LeagueService _instance = LeagueService._internal();
@@ -301,122 +302,34 @@ class LeagueService extends ChangeNotifier {
   }
 
   List<TeamStats> getGlobalTeamsRanked({int? year, int? month}) {
-    final Map<String, TeamStats> aggregate = {};
+    final aggregate = <String, TeamStats>{};
 
     for (final league in _leagues.values) {
-      final filtered = (year == null || month == null)
-          ? league.matches
-          : league.matches.where((m) => m.date.year == year && m.date.month == month);
-
+      final filtered = league.matchesForMonth(year, month);
       if (filtered.isNotEmpty) {
-        for (final m in filtered) {
-          final key1 = NameParser.generateTeamKey(m.team1Members);
-          final t1 = aggregate.putIfAbsent(
-            key1,
-            () => TeamStats(
-              key: key1,
-              displayName: m.team1DisplayName,
-              members: List.from(m.team1Members),
-            ),
-          );
-          t1.matchesPlayed += 1;
-          t1.totalPoints += m.score1;
-          if (m.winnerTeam == 1) t1.wins += 1;
-
-          final key2 = NameParser.generateTeamKey(m.team2Members);
-          final t2 = aggregate.putIfAbsent(
-            key2,
-            () => TeamStats(
-              key: key2,
-              displayName: m.team2DisplayName,
-              members: List.from(m.team2Members),
-            ),
-          );
-          t2.matchesPlayed += 1;
-          t2.totalPoints += m.score2;
-          if (m.winnerTeam == 2) t2.wins += 1;
-        }
+        RankingCalculator.aggregateTeamsInto(aggregate, filtered);
       } else if (year == null || month == null) {
-        for (final team in league.teams.values) {
-          final existing = aggregate[team.key];
-          if (existing == null) {
-            aggregate[team.key] = TeamStats(
-              key: team.key,
-              displayName: team.displayName,
-              members: List.from(team.members),
-              wins: team.wins,
-              matchesPlayed: team.matchesPlayed,
-              totalPoints: team.totalPoints,
-            );
-          } else {
-            existing.wins += team.wins;
-            existing.matchesPlayed += team.matchesPlayed;
-            existing.totalPoints += team.totalPoints;
-          }
-        }
+        // Liga sin partidas: fusionar sus estadísticas ya agregadas
+        RankingCalculator.mergeTeamsInto(aggregate, league.teams);
       }
     }
 
-    final list = aggregate.values.toList();
-    list.sort((a, b) {
-      final winsCmp = b.wins.compareTo(a.wins);
-      if (winsCmp != 0) return winsCmp;
-      final rateCmp = b.winRate.compareTo(a.winRate);
-      if (rateCmp != 0) return rateCmp;
-      return b.totalPoints.compareTo(a.totalPoints);
-    });
-    return list;
+    return RankingCalculator.sortTeams(aggregate.values);
   }
 
   List<PlayerStats> getGlobalPlayersRanked({int? year, int? month}) {
-    final Map<String, PlayerStats> aggregate = {};
+    final aggregate = <String, PlayerStats>{};
 
     for (final league in _leagues.values) {
-      final filtered = (year == null || month == null)
-          ? league.matches
-          : league.matches.where((m) => m.date.year == year && m.date.month == month);
-
+      final filtered = league.matchesForMonth(year, month);
       if (filtered.isNotEmpty) {
-        for (final m in filtered) {
-          for (final name in m.team1Members) {
-            final key = NameParser.removeDiacritics(name.trim().toLowerCase());
-            final p = aggregate.putIfAbsent(key, () => PlayerStats(key: key, name: name));
-            p.matchesPlayed += 1;
-            if (m.winnerTeam == 1) p.wins += 1;
-          }
-
-          for (final name in m.team2Members) {
-            final key = NameParser.removeDiacritics(name.trim().toLowerCase());
-            final p = aggregate.putIfAbsent(key, () => PlayerStats(key: key, name: name));
-            p.matchesPlayed += 1;
-            if (m.winnerTeam == 2) p.wins += 1;
-          }
-        }
+        RankingCalculator.aggregatePlayersInto(aggregate, filtered);
       } else if (year == null || month == null) {
-        for (final player in league.players.values) {
-          final existing = aggregate[player.key];
-          if (existing == null) {
-            aggregate[player.key] = PlayerStats(
-              key: player.key,
-              name: player.name,
-              wins: player.wins,
-              matchesPlayed: player.matchesPlayed,
-            );
-          } else {
-            existing.wins += player.wins;
-            existing.matchesPlayed += player.matchesPlayed;
-          }
-        }
+        RankingCalculator.mergePlayersInto(aggregate, league.players);
       }
     }
 
-    final list = aggregate.values.toList();
-    list.sort((a, b) {
-      final winsCmp = b.wins.compareTo(a.wins);
-      if (winsCmp != 0) return winsCmp;
-      return b.winRate.compareTo(a.winRate);
-    });
-    return list;
+    return RankingCalculator.sortPlayers(aggregate.values);
   }
 
   // --- Persistencia con SharedPreferences ---

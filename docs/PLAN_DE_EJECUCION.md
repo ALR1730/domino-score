@@ -42,10 +42,10 @@
 
 | # | Tarea | Estado |
 |---|-------|--------|
-| 3.1 | Extraer diálogos compartidos de ligas (crear/unirse/eliminar) a `lib/widgets/league_dialogs.dart`; eliminar las copias en `league_home_screen.dart` y `league_manager_screen.dart` | ⬜ |
-| 3.2 | Unificar la agregación de rankings en un módulo puro `lib/services/ranking_calculator.dart` usado por `League` y `LeagueService` (elimina 3 copias) | ⬜ |
-| 3.3 | Reemplazar `ListView(children: ...)` por `itemBuilder` en las listas grandes y añadir `key`s a hijos dinámicos | ⬜ |
-| 3.4 | Chrome de diálogo común (fondo, radio, botones) en un helper | ⬜ |
+| 3.1 | Extraer diálogos compartidos de ligas (crear/unirse/eliminar) a `lib/widgets/league_dialogs.dart`; eliminar las copias en `league_home_screen.dart` y `league_manager_screen.dart` | ✅ |
+| 3.2 | Unificar la agregación de rankings en un módulo puro `lib/services/ranking_calculator.dart` usado por `League`, `LeagueService` y `LeaderboardService` (elimina 3 copias) | ✅ |
+| 3.3 | Reemplazar `ListView(children: ...)` por `itemBuilder` en las listas grandes y añadir `key`s a hijos dinámicos | ✅ |
+| 3.4 | Chrome de diálogo común (fondo, radio, botones) en un helper | ✅ |
 
 ## Fase 4 — Flutter: código muerto y bugs
 

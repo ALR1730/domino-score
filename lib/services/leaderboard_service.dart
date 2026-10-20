@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/leaderboard_entry.dart';
+import '../models/league.dart';
+import 'ranking_calculator.dart';
 
 class LeaderboardService extends ChangeNotifier {
   static final LeaderboardService _instance = LeaderboardService._internal();
@@ -21,30 +23,11 @@ class LeaderboardService extends ChangeNotifier {
   List<TeamStats> get teams => _teams.values.toList();
   List<PlayerStats> get players => _players.values.toList();
 
-  List<TeamStats> get teamsRanked {
-    final list = _teams.values.toList();
-    list.sort((a, b) {
-      // 1. Victorias
-      final winsCompare = b.wins.compareTo(a.wins);
-      if (winsCompare != 0) return winsCompare;
-      // 2. Win rate
-      final rateCompare = b.winRate.compareTo(a.winRate);
-      if (rateCompare != 0) return rateCompare;
-      // 3. Puntos totales acumulados
-      return b.totalPoints.compareTo(a.totalPoints);
-    });
-    return list;
-  }
+  List<TeamStats> get teamsRanked =>
+      RankingCalculator.sortTeams(_teams.values);
 
-  List<PlayerStats> get playersRanked {
-    final list = _players.values.toList();
-    list.sort((a, b) {
-      final winsCompare = b.wins.compareTo(a.wins);
-      if (winsCompare != 0) return winsCompare;
-      return b.winRate.compareTo(a.winRate);
-    });
-    return list;
-  }
+  List<PlayerStats> get playersRanked =>
+      RankingCalculator.sortPlayers(_players.values);
 
   Future<void> recordMatch({
     required String rawTeam1,
@@ -57,69 +40,28 @@ class LeaderboardService extends ChangeNotifier {
     final members1 = NameParser.extractMembers(rawTeam1);
     final members2 = NameParser.extractMembers(rawTeam2);
 
-    final key1 = NameParser.generateTeamKey(members1);
-    final key2 = NameParser.generateTeamKey(members2);
-
-    if (key1.isEmpty || key2.isEmpty) return;
-
-    final display1 = NameParser.formatTeamDisplayName(members1);
-    final display2 = NameParser.formatTeamDisplayName(members2);
-
-    // 2. Actualizar o crear Equipo 1
-    final team1 = _teams.putIfAbsent(
-      key1,
-      () => TeamStats(
-        key: key1,
-        displayName: display1,
-        members: members1,
-      ),
-    );
-    team1.matchesPlayed += 1;
-    team1.totalPoints += score1;
-    if (winnerTeam == 1) {
-      team1.wins += 1;
+    if (NameParser.generateTeamKey(members1).isEmpty ||
+        NameParser.generateTeamKey(members2).isEmpty) {
+      return;
     }
 
-    // 3. Actualizar o crear Equipo 2
-    final team2 = _teams.putIfAbsent(
-      key2,
-      () => TeamStats(
-        key: key2,
-        displayName: display2,
-        members: members2,
-      ),
+    // 2. Agregar la partida con la implementación compartida
+    final match = LeagueMatch(
+      id: 'local_${DateTime.now().microsecondsSinceEpoch}',
+      date: DateTime.now(),
+      team1DisplayName: NameParser.formatTeamDisplayName(members1),
+      team2DisplayName: NameParser.formatTeamDisplayName(members2),
+      team1Members: members1,
+      team2Members: members2,
+      score1: score1,
+      score2: score2,
+      winnerTeam: winnerTeam,
     );
-    team2.matchesPlayed += 1;
-    team2.totalPoints += score2;
-    if (winnerTeam == 2) {
-      team2.wins += 1;
-    }
-
-    // 4. Actualizar estadísticas individuales de cada jugador
-    _updatePlayersFromTeam(members1, isWinner: winnerTeam == 1);
-    _updatePlayersFromTeam(members2, isWinner: winnerTeam == 2);
+    RankingCalculator.aggregateTeamsInto(_teams, [match]);
+    RankingCalculator.aggregatePlayersInto(_players, [match]);
 
     await _saveData();
     notifyListeners();
-  }
-
-  void _updatePlayersFromTeam(List<String> members, {required bool isWinner}) {
-    for (final member in members) {
-      final key = NameParser.removeDiacritics(member.trim().toLowerCase());
-      if (key.isEmpty) continue;
-
-      final player = _players.putIfAbsent(
-        key,
-        () => PlayerStats(
-          key: key,
-          name: member,
-        ),
-      );
-      player.matchesPlayed += 1;
-      if (isWinner) {
-        player.wins += 1;
-      }
-    }
   }
 
   Future<void> loadData() async {

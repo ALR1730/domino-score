@@ -133,7 +133,8 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
-          items: participants.map((p) {
+          // toSet: defensa contra nombres duplicados (DropdownButton exige values únicos)
+          items: participants.toSet().map((p) {
             return DropdownMenuItem<String>(
               value: p,
               child: Text(p),

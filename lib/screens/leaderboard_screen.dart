@@ -473,6 +473,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         final rank = index + 1;
 
         return Container(
+          key: ValueKey('lb_team_${team.key}'),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.slate900,
@@ -596,6 +597,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         final rank = index + 1;
 
         return Container(
+          key: ValueKey('lb_player_${player.key}'),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.slate900,

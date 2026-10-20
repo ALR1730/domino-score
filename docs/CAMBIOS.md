@@ -40,4 +40,25 @@
 
 **Verificación:** 20/20 tests backend en verde; el árbol de trabajo ya no ensucia `backend/data/leagues.json`. Neto: **-159 líneas**.
 
+---
+
+## Fase 3 — Flutter: eliminación de duplicación (2026-10-20)
+
+**Objetivo:** una sola implementación de cada diálogo y de cada cálculo de ranking; listas grandes con `itemBuilder`.
+
+| Archivo | Cambio |
+|---------|--------|
+| `lib/widgets/league_dialogs.dart` *(nuevo)* | Los 6 diálogos duplicados entre `league_home_screen` y `league_manager_screen` (crear ×2, unirse ×2, eliminar ×3 + eliminar-del-servidor, agregar participante) viven ahora en un solo lugar, con chrome común (`showAppDialog`), fila de botones común (`DialogActionButtons`), callbacks desacoplados y `TextEditingController` que se liberan en `dispose` (antes se filtraban en cada apertura). El diálogo de unirse acepta modo preseleccionado (gestor) o de búsqueda (home). |
+| `lib/services/ranking_calculator.dart` *(nuevo)* | Implementación única de agregación (equipos/individual) y orden (victorias → winRate → puntos). Funciones puras reutilizables. |
+| `lib/models/league.dart` | `getTeamsRankedForMonth` / `getPlayersRankedForMonth` delegan en el calculador; se elimina la copia local de agregación y orden (~120 líneas). Nuevo helper público `matchesForMonth`. |
+| `lib/services/league_service.dart` | `getGlobalTeamsRanked` / `getGlobalPlayersRanked` delegan en el calculador (agregar en mapa compartido + fusionar estadísticas almacenadas como fallback histórico) — elimina la 2ª copia (~130 líneas). |
+| `lib/services/leaderboard_service.dart` | `recordMatch` delega en el calculador (elimina la 3ª copia: putIfAbsent + contadores + `_updatePlayersFromTeam`); `teamsRanked` / `playersRanked` delegan en los ordenadores compartidos. |
+| `lib/screens/league/league_home_screen.dart` | Los 3 diálogos + agregar participante reemplazados por llamadas a los compartidos (la pantalla pierde ~380 líneas); lista de participantes pasa a `ListView.builder` con `key` por participante; keys en rankings. |
+| `lib/screens/league/league_manager_screen.dart` | Los 4 diálogos reemplazados por los compartidos (pierde ~470 líneas); listas local y del servidor a `ListView.builder` con `key` por liga. |
+| `lib/screens/league/global_ranking_screen.dart` | Listas de Parejas/Individual a `ListView.builder` con `key` por equipo/jugador. **Fix del bug de insignias:** los puestos 2 y 3 ahora muestran sus iconos `looks_two`/`looks_3` (antes solo el puesto 1 mostraba icono; era la tarea 4.5, aprovechada aquí). |
+| `lib/screens/leaderboard_screen.dart` | `key` por equipo/jugador en ambas listas. |
+| `lib/screens/league/match_setup_screen.dart` | Defensa con `toSet()` contra participantes duplicados en el `DropdownButton` (crash por `values` duplicados). |
+
+**Verificación:** `flutter analyze` sin issues; `flutter test` en verde (el test de ranking mensual confirma que la refactorización no cambia resultados). Los 3 archivos fuertemente reescritos (`league_home_screen`, `league_manager_screen`, `league_dialogs`) quedaron con formato `dart format` interno, aunque el resto del repo no lo cumple aún (se aborda en la Fase 6).
+
 

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'leaderboard_entry.dart';
+import '../services/ranking_calculator.dart';
 
 class LeagueMatch {
   final String id;
@@ -94,102 +95,30 @@ class League {
     return list;
   }
 
+  /// Partidas filtradas por mes (o todas si no se especifica mes/año).
+  Iterable<LeagueMatch> matchesForMonth(int? year, int? month) =>
+      (year == null || month == null)
+          ? matches
+          : matches.where((m) => m.date.year == year && m.date.month == month);
+
   List<TeamStats> getTeamsRankedForMonth({int? year, int? month}) {
-    final filtered = (year == null || month == null)
-        ? matches
-        : matches.where((m) => m.date.year == year && m.date.month == month);
-    final Map<String, TeamStats> monthTeams = {};
-
-    for (final m in filtered) {
-      final key1 = NameParser.generateTeamKey(m.team1Members);
-      final t1 = monthTeams.putIfAbsent(
-        key1,
-        () => TeamStats(
-          key: key1,
-          displayName: m.team1DisplayName,
-          members: List.from(m.team1Members),
-        ),
-      );
-      t1.matchesPlayed += 1;
-      t1.totalPoints += m.score1;
-      if (m.winnerTeam == 1) t1.wins += 1;
-
-      final key2 = NameParser.generateTeamKey(m.team2Members);
-      final t2 = monthTeams.putIfAbsent(
-        key2,
-        () => TeamStats(
-          key: key2,
-          displayName: m.team2DisplayName,
-          members: List.from(m.team2Members),
-        ),
-      );
-      t2.matchesPlayed += 1;
-      t2.totalPoints += m.score2;
-      if (m.winnerTeam == 2) t2.wins += 1;
+    final ranked =
+        RankingCalculator.rankTeamsFromMatches(matchesForMonth(year, month));
+    if (ranked.isEmpty && (year == null || month == null)) {
+      // Sin partidas: usar las estadísticas agregadas almacenadas (p. ej.
+      // tras sincronizar una liga desde el servidor con equipos ya calculados)
+      return RankingCalculator.sortTeams(teams.values);
     }
-
-    if (monthTeams.isEmpty && (year == null || month == null)) {
-      final fallback = teams.values.toList();
-      fallback.sort((a, b) {
-        final winsCmp = b.wins.compareTo(a.wins);
-        if (winsCmp != 0) return winsCmp;
-        final rateCmp = b.winRate.compareTo(a.winRate);
-        if (rateCmp != 0) return rateCmp;
-        return b.totalPoints.compareTo(a.totalPoints);
-      });
-      return fallback;
-    }
-
-    final list = monthTeams.values.toList();
-    list.sort((a, b) {
-      final winsCmp = b.wins.compareTo(a.wins);
-      if (winsCmp != 0) return winsCmp;
-      final rateCmp = b.winRate.compareTo(a.winRate);
-      if (rateCmp != 0) return rateCmp;
-      return b.totalPoints.compareTo(a.totalPoints);
-    });
-    return list;
+    return ranked;
   }
 
   List<PlayerStats> getPlayersRankedForMonth({int? year, int? month}) {
-    final filtered = (year == null || month == null)
-        ? matches
-        : matches.where((m) => m.date.year == year && m.date.month == month);
-    final Map<String, PlayerStats> monthPlayers = {};
-
-    for (final m in filtered) {
-      for (final name in m.team1Members) {
-        final key = NameParser.removeDiacritics(name.trim().toLowerCase());
-        final p = monthPlayers.putIfAbsent(key, () => PlayerStats(key: key, name: name));
-        p.matchesPlayed += 1;
-        if (m.winnerTeam == 1) p.wins += 1;
-      }
-
-      for (final name in m.team2Members) {
-        final key = NameParser.removeDiacritics(name.trim().toLowerCase());
-        final p = monthPlayers.putIfAbsent(key, () => PlayerStats(key: key, name: name));
-        p.matchesPlayed += 1;
-        if (m.winnerTeam == 2) p.wins += 1;
-      }
+    final ranked =
+        RankingCalculator.rankPlayersFromMatches(matchesForMonth(year, month));
+    if (ranked.isEmpty && (year == null || month == null)) {
+      return RankingCalculator.sortPlayers(players.values);
     }
-
-    if (monthPlayers.isEmpty && (year == null || month == null)) {
-      final fallback = players.values.toList();
-      fallback.sort((a, b) {
-        final winsCmp = b.wins.compareTo(a.wins);
-        if (winsCmp != 0) return winsCmp;
-        return b.winRate.compareTo(a.winRate);
-      });
-      return fallback;
-    }
-
-    final list = monthPlayers.values.toList();
-    list.sort((a, b) {
-      final winsCmp = b.wins.compareTo(a.wins);
-      if (winsCmp != 0) return winsCmp;
-      return b.winRate.compareTo(a.winRate);
-    });
-    return list;
+    return ranked;
   }
 
   void addParticipant(String name) {

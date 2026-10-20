@@ -384,20 +384,26 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
       return _buildEmptyState(isTeams: true);
     }
 
-    return ListView(
+    return ListView.builder(
       padding: const EdgeInsets.all(16),
-      children: [
-        // Podio Top 3 si hay equipos
-        if (teams.length >= 2) _buildTeamsPodium(teams.take(3).toList()),
-        const SizedBox(height: 12),
-        // Lista completa
-        ...List.generate(teams.length, (i) {
-          final t = teams[i];
-          final rank = i + 1;
-          final losses = t.matchesPlayed - t.wins;
+      // Podio (opcional) + spacing + filas del ranking
+      itemCount: teams.length + 2,
+      itemBuilder: (ctx, i) {
+        if (i == 0) {
+          // Podio Top 3 si hay equipos
+          return teams.length >= 2
+              ? _buildTeamsPodium(teams.take(3).toList())
+              : const SizedBox.shrink();
+        }
+        if (i == 1) return const SizedBox(height: 12);
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
+        final t = teams[i - 2];
+        final rank = i - 1;
+        final losses = t.matchesPlayed - t.wins;
+
+        return Container(
+          key: ValueKey('rank_team_${t.key}'),
+          margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.slate900,
@@ -474,9 +480,8 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
               ],
             ),
           );
-        }),
-      ],
-    );
+        },
+      );
   }
 
   Widget _buildPlayersTab() {
@@ -495,18 +500,24 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
       return _buildEmptyState(isTeams: false);
     }
 
-    return ListView(
+    return ListView.builder(
       padding: const EdgeInsets.all(16),
-      children: [
-        if (players.length >= 2) _buildPlayersPodium(players.take(3).toList()),
-        const SizedBox(height: 12),
-        ...List.generate(players.length, (i) {
-          final p = players[i];
-          final rank = i + 1;
-          final losses = p.matchesPlayed - p.wins;
+      itemCount: players.length + 2,
+      itemBuilder: (ctx, i) {
+        if (i == 0) {
+          return players.length >= 2
+              ? _buildPlayersPodium(players.take(3).toList())
+              : const SizedBox.shrink();
+        }
+        if (i == 1) return const SizedBox(height: 12);
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
+        final p = players[i - 2];
+        final rank = i - 1;
+        final losses = p.matchesPlayed - p.wins;
+
+        return Container(
+          key: ValueKey('rank_player_${p.key}'),
+          margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.slate900,
@@ -574,9 +585,8 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
               ],
             ),
           );
-        }),
-      ],
-    );
+        },
+      );
   }
 
   Widget _buildRankBadge(int rank) {
@@ -610,11 +620,12 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
         border: Border.all(color: border.withValues(alpha: 0.5)),
       ),
       alignment: Alignment.center,
-      child: icon != null && rank == 1
-          ? const Icon(Icons.emoji_events, size: 16, color: Colors.white)
+      child: icon != null
+          ? Icon(icon, size: 16, color: Colors.white)
           : Text(
               '#$rank',
-              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
             ),
     );
   }
