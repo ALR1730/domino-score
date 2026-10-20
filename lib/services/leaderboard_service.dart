@@ -8,8 +8,13 @@ import 'ranking_calculator.dart';
 class LeaderboardService extends ChangeNotifier {
   static final LeaderboardService _instance = LeaderboardService._internal();
   factory LeaderboardService() => _instance;
+
+  /// Completa cuando la carga inicial termina. Se espera en escrituras para
+  /// evitar que un registro rápido pise (o sea pisado por) la carga de prefs.
+  late final Future<void> _loadFuture;
+
   LeaderboardService._internal() {
-    loadData();
+    _loadFuture = loadData();
   }
 
   static const String _teamsPrefKey = 'domino_leaderboard_teams_v1';
@@ -29,39 +34,23 @@ class LeaderboardService extends ChangeNotifier {
   List<PlayerStats> get playersRanked =>
       RankingCalculator.sortPlayers(_players.values);
 
-  Future<void> recordMatch({
-    required String rawTeam1,
-    required String rawTeam2,
-    required int score1,
-    required int score2,
-    required int winnerTeam, // 1 or 2
-  }) async {
-    // 1. Extraer y normalizar miembros de cada equipo
-    final members1 = NameParser.extractMembers(rawTeam1);
-    final members2 = NameParser.extractMembers(rawTeam2);
+  /// Registra una partida (casual o de liga) en la clasificación local de
+  /// este dispositivo. Devuelve `false` si no se pudo registrar (equipos sin
+  /// nombres válidos).
+  Future<bool> recordMatch(LeagueMatch match) async {
+    await _loadFuture; // esperar la carga inicial para no pisarla ni perder la partida
 
-    if (NameParser.generateTeamKey(members1).isEmpty ||
-        NameParser.generateTeamKey(members2).isEmpty) {
-      return;
+    if (NameParser.generateTeamKey(match.team1Members).isEmpty ||
+        NameParser.generateTeamKey(match.team2Members).isEmpty) {
+      return false;
     }
 
-    // 2. Agregar la partida con la implementación compartida
-    final match = LeagueMatch(
-      id: 'local_${DateTime.now().microsecondsSinceEpoch}',
-      date: DateTime.now(),
-      team1DisplayName: NameParser.formatTeamDisplayName(members1),
-      team2DisplayName: NameParser.formatTeamDisplayName(members2),
-      team1Members: members1,
-      team2Members: members2,
-      score1: score1,
-      score2: score2,
-      winnerTeam: winnerTeam,
-    );
     RankingCalculator.aggregateTeamsInto(_teams, [match]);
     RankingCalculator.aggregatePlayersInto(_players, [match]);
 
     await _saveData();
     notifyListeners();
+    return true;
   }
 
   Future<void> loadData() async {
@@ -110,6 +99,7 @@ class LeaderboardService extends ChangeNotifier {
   }
 
   Future<void> resetLeaderboard() async {
+    await _loadFuture;
     _teams.clear();
     _players.clear();
     await _saveData();

@@ -28,7 +28,9 @@ class LeagueMatch {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'date': date.toIso8601String(),
+      // UTC con sufijo Z: el backend agrupa por mes en UTC (misma línea base
+      // que rankings del servidor); al leer se vuelve a hora local.
+      'date': date.toUtc().toIso8601String(),
       'team1DisplayName': team1DisplayName,
       'team2DisplayName': team2DisplayName,
       'team1Members': team1Members,
@@ -42,7 +44,12 @@ class LeagueMatch {
   factory LeagueMatch.fromMap(Map<String, dynamic> map) {
     return LeagueMatch(
       id: map['id'] as String? ?? '',
-      date: DateTime.tryParse(map['date'] as String? ?? '') ?? DateTime.now(),
+      // A hora local: el filtrado por mes de la UI es en el huso del usuario.
+      // Las fechas antiguas sin Z (naïvas) se interpretan como locales, igual
+      // que siempre.
+      date:
+          (DateTime.tryParse(map['date'] as String? ?? '') ?? DateTime.now())
+              .toLocal(),
       team1DisplayName: map['team1DisplayName'] as String? ?? '',
       team2DisplayName: map['team2DisplayName'] as String? ?? '',
       team1Members: (map['team1Members'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],

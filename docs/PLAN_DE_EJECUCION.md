@@ -51,13 +51,13 @@
 
 | # | Tarea | Estado |
 |---|-------|--------|
-| 4.1 | Conectar `LeaderboardService` (hoy siempre vacío): registrar partidas casuales y de liga finalizadas en el tablero local "En este Dispositivo" | ⬜ |
-| 4.2 | Eliminar `ApiClient.updateBaseUrl` y `checkHealth` sin llamadas; corregir README | ⬜ |
-| 4.3 | Eliminar `_checkAndRecordMatch` vacío y `_matchRecorded` no leído en `GameState` | ⬜ |
-| 4.4 | Eliminar la purga hardcodeada de ligas de prueba en `LeagueService.loadData` | ⬜ |
-| 4.5 | Fix del bug de iconos de posiciones 2/3 en `global_ranking_screen.dart` | ⬜ |
-| 4.6 | `ApiClient`: enviar fechas en UTC (`Z`), timeout como constante única, quitar el PIN del query string y el workaround de redeploy en `deleteLeague` | ⬜ |
-| 4.7 | `domino_game_screen`: registrar la partida en la liga correcta (capturada al inicio) y mostrar el SnackBar según el resultado real del sync | ⬜ |
+| 4.1 | Conectar `LeaderboardService` (hoy siempre vacío): registrar partidas casuales y de liga finalizadas en el tablero local "En este Dispositivo" | ✅ |
+| 4.2 | Eliminar `ApiClient.updateBaseUrl` y `checkHealth` sin llamadas; corregir README | ✅ |
+| 4.3 | Eliminar `_checkAndRecordMatch` vacío y `_matchRecorded` no leído en `GameState` | ✅ |
+| 4.4 | Eliminar la purga hardcodeada de ligas de prueba en `LeagueService.loadData` | ✅ |
+| 4.5 | Fix del bug de iconos de posiciones 2/3 en `global_ranking_screen.dart` | ✅ (hecho en Fase 3) |
+| 4.6 | `ApiClient`: enviar fechas en UTC (`Z`), timeout como constante única, quitar el PIN del query string y el workaround de redeploy en `deleteLeague` | ✅ |
+| 4.7 | `domino_game_screen`: registrar la partida en la liga correcta (capturada al inicio) y mostrar el SnackBar según el resultado real del sync | ✅ |
 
 ## Fase 5 — Tests e infra
 

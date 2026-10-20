@@ -61,4 +61,25 @@
 
 **Verificación:** `flutter analyze` sin issues; `flutter test` en verde (el test de ranking mensual confirma que la refactorización no cambia resultados). Los 3 archivos fuertemente reescritos (`league_home_screen`, `league_manager_screen`, `league_dialogs`) quedaron con formato `dart format` interno, aunque el resto del repo no lo cumple aún (se aborda en la Fase 6).
 
+---
+
+## Fase 4 — Código muerto y bugs de Flutter (2026-10-20)
+
+**Objetivo:** eliminar código sin llamadas, conectar el tablero local que nunca se poblaba y corregir los bugs funcionales detectados en la revisión.
+
+| Tarea | Archivo | Cambio |
+|-------|---------|--------|
+| 4.1 | `lib/services/leaderboard_service.dart` | `recordMatch` ahora recibe un `LeagueMatch` listo y devuelve `bool`; se añade `late final _loadFuture` que se espera en `recordMatch`/`resetLeaderboard` para evitar carreras con la carga inicial de SharedPreferences (un registro rápido no podía pisar ni ser pisado por la carga). |
+| 4.1 | `lib/screens/domino_game_screen.dart` | Al terminar una partida **casual o de liga**, el resultado se registra en `LeaderboardService` → por fin el tab "En este Dispositivo" de la tabla de clasificación se pobla (antes el servicio estaba cableado a la UI pero nadie llamaba `recordMatch`). |
+| 4.3 + 4.1 | `lib/models/game_state.dart` | Se elimina `_checkAndRecordMatch()` (cuerpo vacío) y `_matchRecorded` (nunca leído fuera ni escrito con significado; también desaparece de la persistencia). A cambio, `GameState` detecta ahora la transición real "en juego → terminada" con `_wasGameOver`/`_justFinished` y `consumeJustFinished()` (flag de un solo consumo). La línea base se fija al cargar desde prefs → una partida restaurada **no** se re-registra; `eliminarRonda` actualiza el flag para permitir deshacer la ronda decisiva y volver a jugar. |
+| 4.1 / 4.7 | `lib/screens/domino_game_screen.dart` | Flujo de registro reescrito: `_onGameStateChanged` consume la transición, aplica el guard de puntaje 0, construye el `LeagueMatch` (miembros reales de liga o `NameParser.extractMembers` en casual) y `_recordResults` **espera** ambos registros (dispositivo + liga) antes de mostrar el SnackBar, con mensaje según lo que realmente pasó: liga registrada / liga ya no existe / clasificación local / solo victoria. |
+| 4.7 | `lib/services/league_service.dart` | `recordMatchForActiveLeague` (registraba en la liga *activa* al **final** de la partida → podía cambiarse durante el juego) se reemplaza por `recordMatchToLeague(leagueId, match)` que usa el `leagueId` capturado al inicio (campo inmutable del widget) y devuelve `bool` si la liga existe. |
+| 4.2 | `lib/services/api_client.dart` | Eliminados `updateBaseUrl`, `checkHealth` y `loadSavedBaseUrl`/`_prefKeyBaseUrl` (la URL era editable pero ya no hay UI que la edite: `baseUrl` pasa a `final` = `defaultBaseUrl`); se quita el import de `SharedPreferences`. `isServerAvailable` se mantiene (lo usa el home de ligas). El README no referenciaba estos métulos. |
+| 4.6 | `lib/services/api_client.dart` | Constante única `requestTimeout = 45s` (antes 45s/20s/10s dispersos); `deleteLeague` envía el PIN **solo en el body** (el backend acepta body u query, así que los APKs viejos siguen funcionando) y desaparecen el fallback `POST /delete` y el mensaje de "Manual Deploy" (workaround de redeploy superado). |
+| 4.6 | `lib/models/league.dart` | `LeagueMatch.toMap` envía `date` en UTC con sufijo `Z` → el backend agrupa por mes en UTC (consistente con la Fase 2); `fromMap` convierte a `.toLocal()` → la UI sigue agrupando por mes local del usuario. Fechas naïvas antiguas se siguen interpretando como locales (compatibilidad total con datos previos y APKs viejas). |
+| 4.4 | `lib/services/league_service.dart` | Eliminada la purga de "ligas de prueba/demo" con IDs y nombres hardcodeados (`LIG-1001`, `Liga de Campeones Dominó`, `Prueba CI`…) en `loadData`: borraba datos de usuarios reales que coincidieran. Se conserva la limpieza de duplicados accidentales (mismo nombre+PIN sin partidas). |
+| 4.5 | `lib/screens/league/global_ranking_screen.dart` | ✅ Completada dentro de la Fase 3 (puestos 2/3 ahora muestran sus medallas). |
+
+**Compatibilidad:** sin cambios de contrato; el backend ya aceptaba fechas con `Z` y PIN en body. **Verificación:** `flutter analyze` sin issues; `flutter test` en verde.
+
 

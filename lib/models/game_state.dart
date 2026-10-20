@@ -12,7 +12,11 @@ class GameState extends ChangeNotifier {
   String _nombreE2 = 'Ellos';
   List<Round> _rondas = [];
   bool _isLoaded = false;
-  bool _matchRecorded = false;
+
+  // Detección de transición "en juego" → "terminada" (para registrar la
+  // partida exactamente una vez, al momento en que se decide el ganador).
+  bool _wasGameOver = false;
+  bool _justFinished = false;
 
   GameState({
     this.storageKey = 'domino_casual_game_state_v2',
@@ -79,7 +83,25 @@ class GameState extends ChangeNotifier {
   String get nombreE2 => _nombreE2;
   List<Round> get rondas => List.unmodifiable(_rondas);
   bool get isLoaded => _isLoaded;
-  bool get matchRecorded => _matchRecorded;
+
+  /// Devuelve `true` una sola vez cuando la partida acaba de pasar de "en
+  /// juego" a "terminada". El llamador debe consumirlo para registrar la
+  /// partida (casual o de liga) exactamente en ese instante.
+  bool consumeJustFinished() {
+    final value = _justFinished;
+    _justFinished = false;
+    return value;
+  }
+
+  /// Actualiza el registro de la transición de fin de partida. Debe llamarse
+  /// después de cada mutación que pueda alterar [isGameOver].
+  void _updateFinishedFlag() {
+    final over = isGameOver;
+    if (over && !_wasGameOver) {
+      _justFinished = true;
+    }
+    _wasGameOver = over;
+  }
 
   int get totalE1 {
     int sum = 0;
@@ -123,7 +145,7 @@ class GameState extends ChangeNotifier {
     if (nuevaMeta > 0 && nuevaMeta != _metaPuntos) {
       _metaPuntos = nuevaMeta;
       _saveToPrefs();
-      _checkAndRecordMatch();
+      _updateFinishedFlag();
       notifyListeners();
     }
   }
@@ -150,7 +172,7 @@ class GameState extends ChangeNotifier {
     if (puntos <= 0) return;
     _rondas.add(Round(equipo: equipo, puntos: puntos));
     _saveToPrefs();
-    _checkAndRecordMatch();
+    _updateFinishedFlag();
     notifyListeners();
   }
 
@@ -158,7 +180,7 @@ class GameState extends ChangeNotifier {
     if (index >= 0 && index < _rondas.length && puntos > 0) {
       _rondas[index].puntos = puntos;
       _saveToPrefs();
-      _checkAndRecordMatch();
+      _updateFinishedFlag();
       notifyListeners();
     }
   }
@@ -167,20 +189,19 @@ class GameState extends ChangeNotifier {
     if (index >= 0 && index < _rondas.length) {
       _rondas.removeAt(index);
       _saveToPrefs();
+      // Permite que, si se elimina la ronda decisiva, la partida vuelva a
+      // "en juego" y un nuevo empate de fin vuelva a registrarla.
+      _updateFinishedFlag();
       notifyListeners();
     }
   }
 
   void reiniciarPartida() {
     _rondas.clear();
-    _matchRecorded = false;
+    _wasGameOver = false;
+    _justFinished = false;
     _saveToPrefs();
     notifyListeners();
-  }
-
-  void _checkAndRecordMatch() {
-    // Las partidas casuales no afectan el ranking.
-    // Solo las ligas oficiales registradas a través de LeagueService afectan el ranking.
   }
 
   Future<void> _loadFromPrefs({bool preserveCustomNames = false}) async {
@@ -194,9 +215,11 @@ class GameState extends ChangeNotifier {
           _nombreE1 = data['nombreE1'] as String? ?? _nombreE1;
           _nombreE2 = data['nombreE2'] as String? ?? _nombreE2;
         }
-        _matchRecorded = data['matchRecorded'] as bool? ?? false;
         final rawRondas = data['rondas'] as List<dynamic>? ?? [];
         _rondas = rawRondas.map((r) => Round.fromMap(r as Map<String, dynamic>)).toList();
+        // Una partida restaurada desde prefs NO cuenta como "recién terminada":
+        // la línea base evita re-registrar partidas antiguas al abrir la pantalla.
+        _wasGameOver = isGameOver;
       }
     } catch (e) {
       debugPrint('Error loading preferences for $storageKey: $e');
@@ -213,7 +236,6 @@ class GameState extends ChangeNotifier {
         'metaPuntos': _metaPuntos,
         'nombreE1': _nombreE1,
         'nombreE2': _nombreE2,
-        'matchRecorded': _matchRecorded,
         'rondas': _rondas.map((r) => r.toMap()).toList(),
       };
       await prefs.setString(storageKey, jsonEncode(data));

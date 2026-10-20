@@ -177,9 +177,12 @@ class LeagueService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> recordMatchForActiveLeague(LeagueMatch match) async {
-    final league = activeLeague;
-    if (league == null) return;
+  /// Registra [match] en la liga con id [leagueId] — capturada al inicio de
+  /// la partida — y no en "la liga activa", que pudo cambiar durante el juego.
+  /// Devuelve `false` si la liga ya no existe en el dispositivo.
+  Future<bool> recordMatchToLeague(String leagueId, LeagueMatch match) async {
+    final league = _leagues[leagueId];
+    if (league == null) return false;
 
     // 1. Guardar la partida localmente PRIMERO (operación síncrona en memoria)
     league.recordMatch(match);
@@ -190,6 +193,7 @@ class LeagueService extends ChangeNotifier {
 
     // 3. Sincronizar con servidor en background (nunca bloquea ni sobreescribe datos locales)
     _syncMatchToServer(league, match);
+    return true;
   }
 
   /// Envía la partida al servidor en background. No bloquea ni reemplaza datos locales.
@@ -369,25 +373,10 @@ class LeagueService extends ChangeNotifier {
         for (final id in toRemove) {
           _leagues.remove(id);
         }
-        // Limpiar ligas de prueba o demo del entorno de desarrollo
-        final testKeys = _leagues.keys.where((id) {
-          final l = _leagues[id]!;
-          return id == 'LIG-1001' ||
-              id == 'LIG-SYNC-TEST' ||
-              id == 'LIG-4853' ||
-              id == 'LIG-3887' ||
-              id == 'LIG-1600' ||
-              l.name == 'Liga de Campeones Dominó' ||
-              l.name.contains('Prueba CI') ||
-              l.name == 'Liga Sincronizada';
-        }).toList();
-        for (final k in testKeys) {
-          _leagues.remove(k);
-        }
         if (_activeLeagueId != null && !_leagues.containsKey(_activeLeagueId)) {
           _activeLeagueId = _leagues.isNotEmpty ? _leagues.keys.first : null;
         }
-        if (toRemove.isNotEmpty || testKeys.isNotEmpty) {
+        if (toRemove.isNotEmpty) {
           await _saveData();
         }
       }
