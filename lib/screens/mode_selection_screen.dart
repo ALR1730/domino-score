@@ -94,6 +94,7 @@ class ModeSelectionScreen extends StatelessWidget {
                           builder: (ctx) => DominoGameScreen(
                             gameState: casualGameState,
                             isLeagueMode: false,
+                            ownsGameState: true,
                           ),
                         ),
                       );

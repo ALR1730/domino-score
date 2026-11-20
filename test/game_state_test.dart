@@ -51,13 +51,15 @@ void main() {
     });
 
     test(
-        'empate al llegar ambos a la meta lo gana el último en anotar (ganador 1 tiene prioridad)',
+        'una vez terminada la partida, agregarRonda es ignorada y no revierte el ganador',
         () {
       final state = GameState(skipLoadFromPrefs: true, initialMetaPuntos: 30);
       state.agregarRonda(2, 30);
+      expect(state.isGameOver, isTrue);
+
       state.agregarRonda(1, 30);
-      // totalE1 >= meta se evalúa primero
-      expect(state.ganador, 1);
+      expect(state.totalE1, 0);
+      expect(state.ganador, 2);
     });
 
     test('editar y eliminar rondas recalcula el marcador', () {
@@ -190,6 +192,27 @@ void main() {
       final state = GameState(skipLoadFromPrefs: true);
       state.setNombreE1('   ');
       expect(state.nombreE1, isNotEmpty);
+    });
+
+    test(
+        'GameState.casual() conserva nombres personalizados, metaPuntos y rondas al recargar',
+        () async {
+      final first = GameState.casual();
+      await Future<void>.delayed(Duration.zero);
+      first.setNombreE1('Ana y Luis');
+      first.setNombreE2('Pedro y Juan');
+      first.setMetaPuntos(100);
+      first.agregarRonda(1, 35);
+      await Future<void>.delayed(Duration.zero);
+
+      final reloaded = GameState.casual();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(reloaded.isLoaded, isTrue);
+      expect(reloaded.nombreE1, 'Ana y Luis');
+      expect(reloaded.nombreE2, 'Pedro y Juan');
+      expect(reloaded.metaPuntos, 100);
+      expect(reloaded.totalE1, 35);
     });
   });
 }

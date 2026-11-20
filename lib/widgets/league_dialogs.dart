@@ -1,7 +1,6 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
+import '../services/league_service.dart';
 import '../theme/app_colors.dart';
 
 /// Diálogos compartidos de ligas (crear / unirse / eliminar).
@@ -128,7 +127,7 @@ class _CreateLeagueDialogState extends State<_CreateLeagueDialog> {
 
   /// PIN sugerido: 4 dígitos aleatorios. Evita el viejo "1234" por defecto que
   /// hacía trivialmente adivinable cualquier liga recién creada.
-  static String _randomPin() => (1000 + Random().nextInt(9000)).toString();
+  static String _randomPin() => LeagueService.generateSecurePin();
 
   late final TextEditingController _pinController =
       TextEditingController(text: _randomPin());

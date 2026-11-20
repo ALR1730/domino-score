@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../models/game_state.dart';
@@ -10,6 +13,7 @@ import '../widgets/header_widget.dart';
 import '../widgets/reset_dialog.dart';
 import '../widgets/rounds_history_widget.dart';
 import '../widgets/team_card_widget.dart';
+import '../widgets/winner_dialog.dart';
 
 class DominoGameScreen extends StatefulWidget {
   final GameState gameState;
@@ -17,6 +21,7 @@ class DominoGameScreen extends StatefulWidget {
   final String? leagueId;
   final List<String>? team1Members;
   final List<String>? team2Members;
+  final bool ownsGameState;
 
   const DominoGameScreen({
     super.key,
@@ -25,6 +30,7 @@ class DominoGameScreen extends StatefulWidget {
     this.leagueId,
     this.team1Members,
     this.team2Members,
+    this.ownsGameState = false,
   });
 
   @override
@@ -32,9 +38,14 @@ class DominoGameScreen extends StatefulWidget {
 }
 
 class _DominoGameScreenState extends State<DominoGameScreen> {
-  // Registro único de resultado por sesión de pantalla (se limpia al
-  // reiniciar la partida para permitir registrar la siguiente).
-  bool _resultRecorded = false;
+  static String _generateMatchId() {
+    final rng = Random.secure();
+    final hex = List<String>.generate(
+      8,
+      (_) => rng.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+    return 'match_${DateTime.now().millisecondsSinceEpoch}_$hex';
+  }
 
   @override
   void initState() {
@@ -45,6 +56,9 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
   @override
   void dispose() {
     widget.gameState.removeListener(_onGameStateChanged);
+    if (widget.ownsGameState) {
+      widget.gameState.dispose();
+    }
     super.dispose();
   }
 
@@ -56,14 +70,11 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
     // Transición única "en juego" → "terminada" (bandera consumible: no se
     // vuelve a disparar en cambios posteriores del mismo estado).
     if (!widget.gameState.consumeJustFinished()) return;
-    if (_resultRecorded) return;
 
     // Seguridad: no registrar partidas con puntaje total 0
     final score1 = widget.gameState.totalE1;
     final score2 = widget.gameState.totalE2;
     if (score1 <= 0 && score2 <= 0) return;
-
-    _resultRecorded = true;
 
     final members1 = widget.team1Members ??
         NameParser.extractMembers(widget.gameState.nombreE1);
@@ -71,7 +82,7 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
         NameParser.extractMembers(widget.gameState.nombreE2);
 
     final match = LeagueMatch(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: _generateMatchId(),
       date: DateTime.now(),
       team1DisplayName: widget.gameState.nombreE1,
       team2DisplayName: widget.gameState.nombreE2,
@@ -82,7 +93,16 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
       winnerTeam: widget.gameState.ganador,
     );
 
-    _recordResults(match);
+    unawaited(_recordResults(match));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.gameState.isGameOver) return;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => WinnerDialog(gameState: widget.gameState),
+      );
+    });
   }
 
   /// Registra el resultado en la clasificación de este dispositivo (siempre)
@@ -230,7 +250,6 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
                               context: context,
                               builder: (ctx) => ResetConfirmDialog(
                                 onConfirm: () {
-                                  _resultRecorded = false;
                                   widget.gameState.reiniciarPartida();
                                 },
                               ),

@@ -37,7 +37,9 @@ class LeaderboardService extends ChangeNotifier {
   /// este dispositivo. Devuelve `false` si no se pudo registrar (equipos sin
   /// nombres válidos).
   Future<bool> recordMatch(LeagueMatch match) async {
-    await _loadFuture; // esperar la carga inicial para no pisarla ni perder la partida
+    if (!_isLoaded) {
+      await _loadFuture; // esperar la carga inicial para no pisarla ni perder la partida
+    }
 
     if (NameParser.generateTeamKey(match.team1Members).isEmpty ||
         NameParser.generateTeamKey(match.team2Members).isEmpty) {
@@ -98,7 +100,9 @@ class LeaderboardService extends ChangeNotifier {
   }
 
   Future<void> resetLeaderboard() async {
-    await _loadFuture;
+    if (!_isLoaded) {
+      await _loadFuture;
+    }
     _teams.clear();
     _players.clear();
     await _saveData();

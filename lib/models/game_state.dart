@@ -56,8 +56,6 @@ class GameState extends ChangeNotifier {
   factory GameState.casual() {
     return GameState(
       storageKey: 'domino_casual_game_state_v2',
-      initialNombreE1: 'Nosotros',
-      initialNombreE2: 'Ellos',
       isLeagueMode: false,
     );
   }
@@ -171,7 +169,7 @@ class GameState extends ChangeNotifier {
   }
 
   void agregarRonda(int equipo, int puntos) {
-    if (puntos <= 0) return;
+    if (puntos <= 0 || isGameOver) return;
     _rondas.add(Round(equipo: equipo, puntos: puntos));
     _saveToPrefs();
     _updateFinishedFlag();
@@ -213,7 +211,7 @@ class GameState extends ChangeNotifier {
       if (jsonStr != null) {
         final data = jsonDecode(jsonStr) as Map<String, dynamic>;
         if (!preserveCustomNames) {
-          _metaPuntos = data['metaPuntos'] as int? ?? _metaPuntos;
+          _metaPuntos = (data['metaPuntos'] as num?)?.toInt() ?? _metaPuntos;
           _nombreE1 = data['nombreE1'] as String? ?? _nombreE1;
           _nombreE2 = data['nombreE2'] as String? ?? _nombreE2;
         }
