@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../models/game_state.dart';
 import '../../models/league.dart';
@@ -44,13 +46,13 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
     super.dispose();
   }
 
-  void _addQuickParticipant() {
+  Future<void> _addQuickParticipant() async {
     final name = _customPlayerController.text.trim();
-    if (name.isNotEmpty) {
-      LeagueService().addParticipantToActiveLeague(name);
-      _customPlayerController.clear();
-      setState(() {});
-    }
+    if (name.isEmpty) return;
+    _customPlayerController.clear();
+    await LeagueService().addParticipantToLeague(widget.league.id, name);
+    if (!mounted) return;
+    setState(() {});
   }
 
   bool _isSelectionValid() {
@@ -100,6 +102,7 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
           leagueId: widget.league.id,
           team1Members: [_team1Player1!, _team1Player2!],
           team2Members: [_team2Player1!, _team2Player2!],
+          ownsGameState: true,
         ),
       ),
     );
@@ -232,12 +235,12 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
                             const BorderSide(color: AppColors.emerald500),
                       ),
                     ),
-                    onSubmitted: (_) => _addQuickParticipant(),
+                    onSubmitted: (_) => unawaited(_addQuickParticipant()),
                   ),
                 ),
                 const SizedBox(width: 8),
                 IconButton.filled(
-                  onPressed: _addQuickParticipant,
+                  onPressed: () => unawaited(_addQuickParticipant()),
                   icon: const Icon(Icons.add, size: 18),
                   style: IconButton.styleFrom(
                     backgroundColor: AppColors.emerald600,

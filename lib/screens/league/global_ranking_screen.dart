@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../models/leaderboard_entry.dart';
+import '../../services/api_client.dart';
 import '../../services/league_service.dart';
 import '../../theme/app_colors.dart';
 
@@ -24,6 +27,11 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
 
   // null significa "Histórico Completo"
   DateTime? _selectedMonth;
+  bool _isLoadingServer = true;
+  bool _isFromServer = false;
+  List<TeamStats> _serverTeams = const [];
+  List<PlayerStats> _serverPlayers = const [];
+  List<DateTime> _serverAvailableMonths = const [];
 
   static const List<String> _monthNames = [
     'Enero',
@@ -44,19 +52,92 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _initDefaultMonth();
+    unawaited(_initAndLoad());
   }
 
-  void _initDefaultMonth() {
-    final now = DateTime.now();
-    final available = _service.getAvailableMonths(leagueId: widget.leagueId);
-    if (available.any((d) => d.year == now.year && d.month == now.month)) {
-      _selectedMonth = DateTime(now.year, now.month);
-    } else if (available.isNotEmpty) {
-      _selectedMonth = available.first;
-    } else {
-      _selectedMonth = null; // Histórico
+  Future<void> _initAndLoad() async {
+    if (!_service.isLoaded) {
+      await _service.ensureLoaded();
     }
+    await _loadFromServer(pickDefaultMonth: true);
+  }
+
+  DateTime? _resolveDefaultMonth(List<DateTime> available) {
+    final now = DateTime.now();
+    if (available.any((d) => d.year == now.year && d.month == now.month)) {
+      return DateTime(now.year, now.month);
+    }
+    if (available.isNotEmpty) {
+      return available.first;
+    }
+    return null;
+  }
+
+  List<DateTime> _availableMonths() {
+    if (_isFromServer && _serverAvailableMonths.isNotEmpty) {
+      return _serverAvailableMonths;
+    }
+    return _service.getAvailableMonths(leagueId: widget.leagueId);
+  }
+
+  Future<ServerRankingResult?> _fetchRankingPeriod({int? year, int? month}) {
+    if (widget.leagueId != null) {
+      return ApiClient().fetchLeagueRankings(
+        widget.leagueId!,
+        year: year,
+        month: month,
+      );
+    }
+    return ApiClient().fetchGlobalRankings(year: year, month: month);
+  }
+
+  Future<void> _loadFromServer({bool pickDefaultMonth = false}) async {
+    if (mounted && !_isLoadingServer) {
+      setState(() => _isLoadingServer = true);
+    }
+
+    var result = await _fetchRankingPeriod(
+      year: pickDefaultMonth ? null : _selectedMonth?.year,
+      month: pickDefaultMonth ? null : _selectedMonth?.month,
+    );
+
+    if (!mounted) return;
+
+    if (result != null) {
+      if (pickDefaultMonth) {
+        final defaultMonth = _resolveDefaultMonth(result.availableMonths);
+        _selectedMonth = defaultMonth;
+        if (defaultMonth != null) {
+          final monthly = await _fetchRankingPeriod(
+            year: defaultMonth.year,
+            month: defaultMonth.month,
+          );
+          if (!mounted) return;
+          if (monthly != null) {
+            result = monthly;
+          }
+        }
+      }
+
+      setState(() {
+        _serverTeams = result!.teams;
+        _serverPlayers = result.players;
+        _serverAvailableMonths = result.availableMonths;
+        _isFromServer = true;
+        _isLoadingServer = false;
+      });
+      return;
+    }
+
+    if (pickDefaultMonth) {
+      _selectedMonth = _resolveDefaultMonth(
+        _service.getAvailableMonths(leagueId: widget.leagueId),
+      );
+    }
+    setState(() {
+      _isFromServer = false;
+      _isLoadingServer = false;
+    });
   }
 
   @override
@@ -71,11 +152,12 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
   }
 
   void _prevMonth() {
-    final available = _service.getAvailableMonths(leagueId: widget.leagueId);
+    final available = _availableMonths();
     if (available.isEmpty) return;
 
     if (_selectedMonth == null) {
       setState(() => _selectedMonth = available.first);
+      unawaited(_loadFromServer());
       return;
     }
 
@@ -85,11 +167,12 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
 
     if (currentIndex >= 0 && currentIndex < available.length - 1) {
       setState(() => _selectedMonth = available[currentIndex + 1]);
+      unawaited(_loadFromServer());
     }
   }
 
   void _nextMonth() {
-    final available = _service.getAvailableMonths(leagueId: widget.leagueId);
+    final available = _availableMonths();
     if (available.isEmpty) return;
 
     if (_selectedMonth == null) return;
@@ -100,9 +183,11 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
 
     if (currentIndex > 0) {
       setState(() => _selectedMonth = available[currentIndex - 1]);
+      unawaited(_loadFromServer());
     } else if (currentIndex == 0) {
       // Avanzar después del más reciente vuelve a Histórico
       setState(() => _selectedMonth = null);
+      unawaited(_loadFromServer());
     }
   }
 
@@ -154,6 +239,7 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
                       : null,
                   onTap: () {
                     setState(() => _selectedMonth = null);
+                    unawaited(_loadFromServer());
                     Navigator.pop(ctx);
                   },
                 ),
@@ -201,6 +287,7 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
                               : null,
                           onTap: () {
                             setState(() => _selectedMonth = dt);
+                            unawaited(_loadFromServer());
                             Navigator.pop(ctx);
                           },
                         );
@@ -246,8 +333,44 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (!_isLoadingServer)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: (_isFromServer
+                          ? AppColors.emerald500
+                          : AppColors.amber600)
+                      .withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: (_isFromServer
+                            ? AppColors.emerald500
+                            : AppColors.amber600)
+                        .withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Text(
+                  _isFromServer ? 'Servidor' : 'Solo local',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: _isFromServer
+                        ? AppColors.emerald300
+                        : AppColors.amber300,
+                  ),
+                ),
+              ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon:
+                const Icon(Icons.refresh, size: 20, color: AppColors.slate300),
+            tooltip: 'Actualizar del servidor',
+            onPressed:
+                _isLoadingServer ? null : () => unawaited(_loadFromServer()),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(102),
           child: Column(
@@ -318,7 +441,7 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
   }
 
   Widget _buildMonthFilterBar() {
-    final available = _service.getAvailableMonths(leagueId: widget.leagueId);
+    final available = _availableMonths();
 
     final currentIndex = _selectedMonth == null
         ? -1
@@ -401,16 +524,24 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
   }
 
   Widget _buildTeamsTab() {
-    final teams = widget.leagueId != null
-        ? (_service.getLeague(widget.leagueId!)?.getTeamsRankedForMonth(
-                  year: _selectedMonth?.year,
-                  month: _selectedMonth?.month,
-                ) ??
-            [])
-        : _service.getGlobalTeamsRanked(
-            year: _selectedMonth?.year,
-            month: _selectedMonth?.month,
-          );
+    if (_isLoadingServer) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.emerald400),
+      );
+    }
+
+    final teams = _isFromServer
+        ? _serverTeams
+        : (widget.leagueId != null
+            ? (_service.getLeague(widget.leagueId!)?.getTeamsRankedForMonth(
+                      year: _selectedMonth?.year,
+                      month: _selectedMonth?.month,
+                    ) ??
+                [])
+            : _service.getGlobalTeamsRanked(
+                year: _selectedMonth?.year,
+                month: _selectedMonth?.month,
+              ));
 
     if (teams.isEmpty) {
       return _buildEmptyState(isTeams: true);
@@ -522,16 +653,24 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
   }
 
   Widget _buildPlayersTab() {
-    final players = widget.leagueId != null
-        ? (_service.getLeague(widget.leagueId!)?.getPlayersRankedForMonth(
-                  year: _selectedMonth?.year,
-                  month: _selectedMonth?.month,
-                ) ??
-            [])
-        : _service.getGlobalPlayersRanked(
-            year: _selectedMonth?.year,
-            month: _selectedMonth?.month,
-          );
+    if (_isLoadingServer) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.emerald400),
+      );
+    }
+
+    final players = _isFromServer
+        ? _serverPlayers
+        : (widget.leagueId != null
+            ? (_service.getLeague(widget.leagueId!)?.getPlayersRankedForMonth(
+                      year: _selectedMonth?.year,
+                      month: _selectedMonth?.month,
+                    ) ??
+                [])
+            : _service.getGlobalPlayersRanked(
+                year: _selectedMonth?.year,
+                month: _selectedMonth?.month,
+              ));
 
     if (players.isEmpty) {
       return _buildEmptyState(isTeams: false);
@@ -900,6 +1039,7 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
                 ),
                 onPressed: () {
                   setState(() => _selectedMonth = null);
+                  unawaited(_loadFromServer());
                 },
               ),
           ],

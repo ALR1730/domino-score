@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/game_state.dart';
 import '../theme/app_colors.dart';
-import 'winner_dialog.dart';
 
 class PointsDialog extends StatefulWidget {
   final int equipo;
@@ -63,15 +62,6 @@ class _PointsDialogState extends State<PointsDialog> {
     }
 
     Navigator.of(context).pop();
-
-    // Check if team reached goal and trigger celebration
-    if (widget.gameState.isGameOver) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => WinnerDialog(gameState: widget.gameState),
-      );
-    }
   }
 
   void _delete() {

@@ -37,7 +37,7 @@ Todo cambio en este plan debe respetar las siguientes reglas para **no corromper
 | :--- | :--- | :--- | :--- | :--- |
 | **P0-A** | **Fase 0** ✅ Completada | Contención de seguridad e higiene (CVEs, Docker, secretos, graceful shutdown) | Nulo | No |
 | **P0-B** | **Fase 1** ✅ Completada | Endurecimiento del backend e integridad Mongo-first (100% retrocompatible) | Muy bajo | No |
-| **P0-C** | **Fase 2** | Corrección de bugs silenciosos en Flutter (pérdida de partidas, Casual, GlobalRanking, race conditions) | Bajo | No |
+| **P0-C** | **Fase 2** ✅ Completada | Corrección de bugs silenciosos en Flutter (pérdida de partidas, Casual, GlobalRanking, race conditions) | Bajo | No |
 | **P1** | **Fase 3** | Sincronización de participantes, eficiencia de red, pulido móvil/web y CI sin falsos verdes | Bajo | No |
 | **P1/P2** | **Fase 4** | Migración de PINs a `scrypt` (`pinHash`) en MongoDB Atlas (Expand → Dual-Read → Migrate) | Medio (controlado con backup) | **Sí (aprobación explícita)** |
 | **P2** | **Fase 5** | Refactorización arquitectónica gradual (BETA, dividir pantallas, repositorios Mongo directos) | Medio | No (índices aditivos) |
@@ -106,7 +106,7 @@ Todo cambio en este plan debe respetar las siguientes reglas para **no corromper
 
 ---
 
-## FASE 2 (P0-C) — Corrección de Bugs Silenciosos Críticos en Flutter
+## FASE 2 (P0-C) — Corrección de Bugs Silenciosos Críticos en Flutter ✅ Completada
 
 **Por qué tercero:** Resuelve los 5 bugs confirmados que hoy pierden partidas, pierden configuración de Modo Casual, dejan el "Ranking General del Servidor" vacío y exponen a `LeagueService` a race conditions al arrancar.
 

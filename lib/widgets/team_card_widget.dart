@@ -102,6 +102,8 @@ class _TeamCardWidgetState extends State<TeamCardWidget> {
                 child: TextField(
                   controller: _nameController,
                   focusNode: _focusNode,
+                  readOnly: widget.gameState.isLeagueMode,
+                  enableInteractiveSelection: !widget.gameState.isLeagueMode,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -181,15 +183,17 @@ class _TeamCardWidgetState extends State<TeamCardWidget> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (ctx) => PointsDialog(
-                    equipo: widget.teamNumber,
-                    gameState: widget.gameState,
-                  ),
-                );
-              },
+              onPressed: widget.gameState.isGameOver
+                  ? null
+                  : () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => PointsDialog(
+                          equipo: widget.teamNumber,
+                          gameState: widget.gameState,
+                        ),
+                      );
+                    },
               icon: const Icon(Icons.add, size: 16, color: Colors.white),
               label: const Text(
                 'Sumar',

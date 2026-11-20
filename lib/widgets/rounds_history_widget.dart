@@ -46,29 +46,38 @@ class RoundsHistoryWidget extends StatelessWidget {
                   color: AppColors.slate400,
                 ),
               ),
+              const SizedBox(width: 8),
 
               // Game Status Pill
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(
-                  color: isGameOver
-                      ? AppColors.amber950.withValues(alpha: 0.8)
-                      : AppColors.emerald950.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
+              Flexible(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
                     color: isGameOver
-                        ? AppColors.amber600.withValues(alpha: 0.8)
-                        : AppColors.emerald500.withValues(alpha: 0.4),
+                        ? AppColors.amber950.withValues(alpha: 0.8)
+                        : AppColors.emerald950.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isGameOver
+                          ? AppColors.amber600.withValues(alpha: 0.8)
+                          : AppColors.emerald500.withValues(alpha: 0.4),
+                    ),
                   ),
-                ),
-                child: Text(
-                  isGameOver ? '¡Ganó ${gameState.ganadorNombre}!' : 'En juego',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: isGameOver ? FontWeight.bold : FontWeight.w500,
-                    color:
-                        isGameOver ? AppColors.amber300 : AppColors.emerald400,
+                  child: Text(
+                    isGameOver
+                        ? '¡Ganó ${gameState.ganadorNombre}!'
+                        : 'En juego',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight:
+                          isGameOver ? FontWeight.bold : FontWeight.w500,
+                      color: isGameOver
+                          ? AppColors.amber300
+                          : AppColors.emerald400,
+                    ),
                   ),
                 ),
               ),

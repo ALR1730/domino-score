@@ -14,13 +14,15 @@ class LeagueService extends ChangeNotifier {
   static final LeagueService _instance = LeagueService._internal();
   factory LeagueService() => _instance;
   LeagueService._internal() {
-    loadData();
+    _loadFuture = loadData();
   }
 
   static const String _leaguesPrefKey = 'domino_leagues_registry_v1';
   static const String _activeLeaguePrefKey = 'domino_active_league_id_v1';
 
   final Map<String, League> _leagues = {};
+  final Set<String> _pendingSyncLeagueIds = {};
+  late Future<void> _loadFuture;
   String? _activeLeagueId;
   bool _isLoaded = false;
   bool _isSyncingServer =
@@ -37,14 +39,32 @@ class LeagueService extends ChangeNotifier {
 
   League? getLeague(String id) => _leagues[id];
 
+  Future<void> ensureLoaded() async {
+    if (!_isLoaded) {
+      await _loadFuture;
+    }
+  }
+
+  /// Genera un PIN de 4 dígitos usando RNG criptográfico, evitando `'1234'`.
+  static String generateSecurePin() {
+    final rng = Random.secure();
+    var pin = '1234';
+    while (pin == '1234') {
+      pin = (1000 + rng.nextInt(9000)).toString();
+    }
+    return pin;
+  }
+
   /// Solo para tests: vacía el estado en memoria y recarga desde prefs.
   @visibleForTesting
   Future<void> resetForTesting() async {
     _leagues.clear();
+    _pendingSyncLeagueIds.clear();
     _activeLeagueId = null;
     _isLoaded = false;
     _isSyncingServer = false;
-    await loadData();
+    _loadFuture = loadData();
+    await _loadFuture;
   }
 
   // --- Operaciones de Liga ---
@@ -54,29 +74,39 @@ class LeagueService extends ChangeNotifier {
     required String pin,
     required List<String> initialParticipants,
   }) async {
+    await ensureLoaded();
+
     final cleanName = name.trim();
     final cleanPin = pin.trim();
 
     // ID amigable: ej. LIG-4821
-    final randomDigits = (1000 + Random().nextInt(9000)).toString();
+    final randomDigits = (1000 + Random.secure().nextInt(9000)).toString();
     final id = 'LIG-$randomDigits';
 
-    // PIN aleatorio si no se especifica: nunca "1234" adivinable.
-    final resolvedPin = cleanPin.isNotEmpty
-        ? cleanPin
-        : (1000 + Random().nextInt(9000)).toString();
+    // PIN aleatorio seguro si no se especifica: nunca "1234" adivinable.
+    final resolvedPin = cleanPin.isNotEmpty ? cleanPin : generateSecurePin();
+
+    final cleanParticipants = <String>[];
+    final seenKeys = <String>{};
+    for (final raw in initialParticipants) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) continue;
+      final key = NameParser.removeDiacritics(trimmed.toLowerCase());
+      if (key.isEmpty || !seenKeys.add(key)) continue;
+      cleanParticipants.add(trimmed);
+    }
 
     var league = League(
       id: id,
       name: cleanName.isNotEmpty ? cleanName : 'Liga $randomDigits',
       pin: resolvedPin,
       createdAt: DateTime.now(),
-      participants: initialParticipants,
+      participants: cleanParticipants,
     );
 
     // Inicializar estadísticas individuales para los participantes
-    for (final p in initialParticipants) {
-      final key = NameParser.removeDiacritics(p.trim().toLowerCase());
+    for (final p in cleanParticipants) {
+      final key = NameParser.removeDiacritics(p.toLowerCase());
       league.players.putIfAbsent(key, () => PlayerStats(key: key, name: p));
     }
 
@@ -86,7 +116,7 @@ class LeagueService extends ChangeNotifier {
         id: league.id,
         name: league.name,
         pin: league.pin,
-        initialParticipants: initialParticipants,
+        initialParticipants: cleanParticipants,
       );
 
       if (serverLeague != null) {
@@ -119,6 +149,8 @@ class LeagueService extends ChangeNotifier {
     required String nameOrId,
     required String pin,
   }) async {
+    await ensureLoaded();
+
     final search = NameParser.removeDiacritics(nameOrId.trim().toLowerCase());
     final enteredPin = pin.trim();
 
@@ -161,6 +193,7 @@ class LeagueService extends ChangeNotifier {
   }
 
   Future<void> setActiveLeague(String? leagueId) async {
+    await ensureLoaded();
     _activeLeagueId = leagueId;
     await _saveData();
     notifyListeners();
@@ -169,6 +202,8 @@ class LeagueService extends ChangeNotifier {
   /// Elimina una liga del dispositivo y opcionalmente del servidor si se provee el PIN
   Future<String?> deleteLeague(String id,
       {String? pin, bool deleteOnServer = true}) async {
+    await ensureLoaded();
+
     if (deleteOnServer && pin != null && pin.trim().isNotEmpty) {
       final res = await ApiClient().deleteLeague(id, pin: pin.trim());
       if (res['success'] != true) {
@@ -177,6 +212,7 @@ class LeagueService extends ChangeNotifier {
     }
 
     _leagues.remove(id);
+    _pendingSyncLeagueIds.remove(id);
     if (_activeLeagueId == id) {
       _activeLeagueId = _leagues.isNotEmpty ? _leagues.keys.first : null;
     }
@@ -185,15 +221,24 @@ class LeagueService extends ChangeNotifier {
     return null; // éxito
   }
 
-  Future<void> addParticipantToActiveLeague(String name) async {
-    final league = activeLeague;
+  Future<void> addParticipantToLeague(String leagueId, String name) async {
+    await ensureLoaded();
+    final league = _leagues[leagueId];
     if (league == null) return;
     league.addParticipant(name);
     await _saveData();
     notifyListeners();
   }
 
+  Future<void> addParticipantToActiveLeague(String name) async {
+    await ensureLoaded();
+    final id = _activeLeagueId;
+    if (id == null) return;
+    await addParticipantToLeague(id, name);
+  }
+
   Future<void> removeParticipantFromActiveLeague(String name) async {
+    await ensureLoaded();
     final league = activeLeague;
     if (league == null) return;
     league.removeParticipant(name);
@@ -205,6 +250,7 @@ class LeagueService extends ChangeNotifier {
   /// la partida — y no en "la liga activa", que pudo cambiar durante el juego.
   /// Devuelve `false` si la liga ya no existe en el dispositivo.
   Future<bool> recordMatchToLeague(String leagueId, LeagueMatch match) async {
+    await ensureLoaded();
     final league = _leagues[leagueId];
     if (league == null) return false;
 
@@ -220,21 +266,57 @@ class LeagueService extends ChangeNotifier {
     return true;
   }
 
-  /// Envía la partida al servidor en background. No bloquea ni reemplaza datos locales.
+  void _drainPendingSync() {
+    while (_pendingSyncLeagueIds.isNotEmpty) {
+      final nextId = _pendingSyncLeagueIds.first;
+      _pendingSyncLeagueIds.remove(nextId);
+      final nextLeague = _leagues[nextId];
+      if (nextLeague != null) {
+        unawaited(_syncLeagueWithServer(nextLeague));
+        return;
+      }
+    }
+  }
+
+  bool _mergeServerMatchesInto(League local, League server) {
+    final localMatchIds = local.matches.map((m) => m.id).toSet();
+    var mergedAny = false;
+    for (final serverMatch in server.matches) {
+      if (!localMatchIds.contains(serverMatch.id)) {
+        local.matches.insert(0, serverMatch);
+        mergedAny = true;
+      }
+    }
+    if (mergedAny) {
+      local.sortMatchesByDate();
+    }
+    return mergedAny;
+  }
+
+  /// Envía la partida al servidor en background; encola si ya hay sync en curso.
   Future<void> _syncMatchToServer(League league, LeagueMatch match) async {
-    if (_isSyncingServer) return; // Ya hay un sync en curso
+    if (_isSyncingServer) {
+      _pendingSyncLeagueIds.add(league.id);
+      return;
+    }
     _isSyncingServer = true;
+    var sent = false;
     try {
-      await ApiClient().recordMatch(
+      sent = await ApiClient().recordMatch(
         leagueId: league.id,
         match: match,
         leagueName: league.name,
         pin: league.pin,
       );
+      if (!sent) {
+        _pendingSyncLeagueIds.add(league.id);
+      }
     } catch (e) {
+      _pendingSyncLeagueIds.add(league.id);
       debugPrint('Error enviando partida al servidor: $e');
     } finally {
       _isSyncingServer = false;
+      if (sent) _drainPendingSync();
     }
   }
 
@@ -243,34 +325,24 @@ class LeagueService extends ChangeNotifier {
   Future<bool> _syncLeagueWithServer(League? league) async {
     if (league == null) return false;
     if (_isSyncingServer) {
-      debugPrint('Sync omitido: ya hay una sincronización en curso.');
+      _pendingSyncLeagueIds.add(league.id);
+      debugPrint('Sync diferido: ya hay una sincronización en curso.');
       return false;
     }
     _isSyncingServer = true;
+    var ok = false;
     try {
       League? serverLeague = await ApiClient().syncLeague(league);
       serverLeague ??= await ApiClient().fetchLeague(league.id);
 
       if (serverLeague != null) {
-        // Merge inteligente: el servidor NUNCA puede eliminar partidas locales.
-        // Solo agregamos partidas que están en el servidor pero no en local.
-        final localMatchIds = league.matches.map((m) => m.id).toSet();
-        bool mergedAny = false;
-        for (final serverMatch in serverLeague.matches) {
-          if (!localMatchIds.contains(serverMatch.id)) {
-            // Insertar al inicio (más reciente primero) SIN llamar recordMatch()
-            // para no duplicar estadísticas — la lista de matches es suficiente.
-            league.matches.insert(0, serverMatch);
-            mergedAny = true;
-          }
-        }
-        // Actualizar la referencia local preservando los datos locales
-        league.sortMatchesByDate();
+        final mergedAny = _mergeServerMatchesInto(league, serverLeague);
         _leagues[league.id] = league;
         if (mergedAny) {
           await _saveData();
           notifyListeners();
         }
+        ok = true;
         return true;
       }
       return false;
@@ -279,38 +351,52 @@ class LeagueService extends ChangeNotifier {
       return false;
     } finally {
       _isSyncingServer = false;
+      if (ok) _drainPendingSync();
     }
   }
 
   Future<bool> syncActiveLeagueWithServer() async {
+    await ensureLoaded();
     final league = activeLeague;
     if (league == null) return false;
     return await _syncLeagueWithServer(league);
   }
 
-  Future<void> syncAllLeaguesWithServer() async {
-    for (final league in _leagues.values) {
-      if (_isSyncingServer) {
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-      final serverLeague = await ApiClient().syncLeague(league);
-      if (serverLeague != null) {
-        // Merge: solo agregar partidas del servidor que no estén en local
-        final localIds = league.matches.map((m) => m.id).toSet();
-        for (final sm in serverLeague.matches) {
-          if (!localIds.contains(sm.id)) {
-            league.matches.add(sm);
-          }
+  Future<bool> syncAllLeaguesWithServer() async {
+    await ensureLoaded();
+    if (_isSyncingServer) return false;
+    _isSyncingServer = true;
+    var allSucceeded = true;
+    try {
+      final snapshot = List<League>.of(_leagues.values);
+      var mergedAny = false;
+      for (final league in snapshot) {
+        final serverLeague = await ApiClient().syncLeague(league);
+        if (serverLeague == null) {
+          allSucceeded = false;
+          continue;
         }
-        league.sortMatchesByDate();
+        if (_mergeServerMatchesInto(league, serverLeague)) {
+          mergedAny = true;
+        }
         _leagues[league.id] = league;
+        _pendingSyncLeagueIds.remove(league.id);
       }
+      if (mergedAny) {
+        await _saveData();
+        notifyListeners();
+      }
+      return allSucceeded;
+    } catch (e) {
+      debugPrint('Error en syncAllLeaguesWithServer: $e');
+      return false;
+    } finally {
+      _isSyncingServer = false;
+      if (allSucceeded) _drainPendingSync();
     }
-    await _saveData();
-    notifyListeners();
   }
 
-  // --- Rankings Globales y Mensuales (Agregado de todas las ligas del servidor) ---
+  // --- Rankings Globales y Mensuales (Agregado de todas las ligas locales) ---
 
   List<DateTime> getAvailableMonths({String? leagueId}) {
     final set = <String, DateTime>{};

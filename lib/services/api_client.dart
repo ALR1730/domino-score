@@ -4,6 +4,18 @@ import 'package:http/http.dart' as http;
 import '../models/leaderboard_entry.dart';
 import '../models/league.dart';
 
+class ServerRankingResult {
+  final List<TeamStats> teams;
+  final List<PlayerStats> players;
+  final List<DateTime> availableMonths;
+
+  const ServerRankingResult({
+    required this.teams,
+    required this.players,
+    required this.availableMonths,
+  });
+}
+
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
   factory ApiClient() => _instance;
@@ -17,6 +29,27 @@ class ApiClient {
 
   // URL fija para backend en la nube
   final String baseUrl = defaultBaseUrl;
+
+  String _monthQueryString(int? year, int? month) {
+    if (year == null || month == null) return '';
+    return '?year=$year&month=$month';
+  }
+
+  List<DateTime> _parseAvailableMonths(dynamic raw) {
+    if (raw is! List) return const [];
+    final months = <DateTime>[];
+    for (final entry in raw) {
+      final parts = entry.toString().split('-');
+      if (parts.length != 2) continue;
+      final year = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      if (year != null && month != null && month >= 1 && month <= 12) {
+        months.add(DateTime(year, month));
+      }
+    }
+    months.sort((a, b) => b.compareTo(a));
+    return months;
+  }
 
   Future<bool> isServerAvailable() async {
     try {
@@ -148,39 +181,94 @@ class ApiClient {
     }
   }
 
-  Future<List<TeamStats>?> fetchGlobalTeams() async {
+  Future<Map<String, dynamic>?> _fetchRankingJson(String path) async {
     try {
-      final res = await http
-          .get(Uri.parse('$baseUrl/api/rankings/global/teams'))
-          .timeout(requestTimeout);
+      final res =
+          await http.get(Uri.parse('$baseUrl$path')).timeout(requestTimeout);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        final list = data['teams'] as List<dynamic>;
-        return list.map((item) => TeamStats.fromMap(item)).toList();
+        if (data is Map<String, dynamic> && data['success'] == true) {
+          return data;
+        }
       }
     } catch (e) {
-      debugPrint('ApiClient.fetchGlobalTeams error: $e');
+      debugPrint('ApiClient._fetchRankingJson($path) error: $e');
     }
     return null;
   }
 
-  Future<List<PlayerStats>?> fetchGlobalPlayers() async {
-    try {
-      final res = await http
-          .get(Uri.parse('$baseUrl/api/rankings/global/players'))
-          .timeout(requestTimeout);
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final list = data['players'] as List<dynamic>;
-        return list.map((item) => PlayerStats.fromMap(item)).toList();
-      }
-    } catch (e) {
-      debugPrint('ApiClient.fetchGlobalPlayers error: $e');
-    }
-    return null;
+  Future<List<TeamStats>?> fetchGlobalTeams({int? year, int? month}) async {
+    final data = await _fetchRankingJson(
+      '/api/rankings/global/teams${_monthQueryString(year, month)}',
+    );
+    if (data == null || data['teams'] is! List) return null;
+    return (data['teams'] as List<dynamic>)
+        .map((item) => TeamStats.fromMap(item as Map<String, dynamic>))
+        .toList();
   }
 
-  Future<List<Map<String, dynamic>>> fetchServerLeagues() async {
+  Future<List<PlayerStats>?> fetchGlobalPlayers({int? year, int? month}) async {
+    final data = await _fetchRankingJson(
+      '/api/rankings/global/players${_monthQueryString(year, month)}',
+    );
+    if (data == null || data['players'] is! List) return null;
+    return (data['players'] as List<dynamic>)
+        .map((item) => PlayerStats.fromMap(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<ServerRankingResult?> fetchGlobalRankings(
+      {int? year, int? month}) async {
+    final query = _monthQueryString(year, month);
+    final responses = await Future.wait([
+      _fetchRankingJson('/api/rankings/global/teams$query'),
+      _fetchRankingJson('/api/rankings/global/players$query'),
+    ]);
+
+    final teamsJson = responses[0];
+    final playersJson = responses[1];
+    if (teamsJson == null || playersJson == null) return null;
+
+    final rawTeams = teamsJson['teams'] as List<dynamic>? ?? const [];
+    final rawPlayers = playersJson['players'] as List<dynamic>? ?? const [];
+
+    return ServerRankingResult(
+      teams: rawTeams
+          .map((item) => TeamStats.fromMap(item as Map<String, dynamic>))
+          .toList(),
+      players: rawPlayers
+          .map((item) => PlayerStats.fromMap(item as Map<String, dynamic>))
+          .toList(),
+      availableMonths: _parseAvailableMonths(teamsJson['availableMonths']),
+    );
+  }
+
+  Future<ServerRankingResult?> fetchLeagueRankings(
+    String leagueId, {
+    int? year,
+    int? month,
+  }) async {
+    final data = await _fetchRankingJson(
+      '/api/rankings/league/$leagueId${_monthQueryString(year, month)}',
+    );
+    if (data == null) return null;
+
+    final rawTeams = data['teams'] as List<dynamic>? ?? const [];
+    final rawPlayers = data['players'] as List<dynamic>? ?? const [];
+
+    return ServerRankingResult(
+      teams: rawTeams
+          .map((item) => TeamStats.fromMap(item as Map<String, dynamic>))
+          .toList(),
+      players: rawPlayers
+          .map((item) => PlayerStats.fromMap(item as Map<String, dynamic>))
+          .toList(),
+      availableMonths: _parseAvailableMonths(data['availableMonths']),
+    );
+  }
+
+  /// Devuelve `null` en error de red/servidor para diferenciarlo de una lista vacía.
+  Future<List<Map<String, dynamic>>?> fetchServerLeagues() async {
     try {
       final res = await http
           .get(Uri.parse('$baseUrl/api/leagues'))
@@ -194,15 +282,13 @@ class ApiClient {
     } catch (e) {
       debugPrint('ApiClient.fetchServerLeagues error: $e');
     }
-    return [];
+    return null;
   }
 
   Future<Map<String, dynamic>> deleteLeague(String id,
       {required String pin}) async {
     final cleanPin = pin.trim();
     try {
-      // El PIN viaja solo en el body (el backend acepta body u query para
-      // compatibilidad con APKs antiguas que aún envían ambos).
       final res = await http
           .delete(
             Uri.parse('$baseUrl/api/leagues/$id'),

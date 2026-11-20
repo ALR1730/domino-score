@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:domino_score/models/league.dart';
@@ -91,7 +92,8 @@ void main() {
         initialParticipants: [],
       );
       expect(league.pin, matches(RegExp(r'^\d{4}$')));
-      expect(league.pin, isNot('1234'), reason: 'nunca el viejo PIN adivinable');
+      expect(league.pin, isNot('1234'),
+          reason: 'nunca el viejo PIN adivinable');
     });
 
     test('conserva el PIN local aunque el servidor no lo devuelva', () async {
@@ -390,6 +392,112 @@ void main() {
       final teams = service.getGlobalTeamsRanked();
       expect(teams.length, 1);
       expect(teams.first.wins, 7);
+    });
+  });
+
+  group('LeagueService — Fase 2 seguridad y sincronización', () {
+    test('generateSecurePin devuelve 4 dígitos y nunca 1234', () {
+      for (int i = 0; i < 200; i++) {
+        final pin = LeagueService.generateSecurePin();
+        expect(pin, matches(RegExp(r'^\d{4}$')));
+        expect(pin, isNot('1234'));
+      }
+    });
+
+    test('addParticipantToLeague deduplica nombres sin tildes (José / Jose)',
+        () async {
+      final league = await runWithFakeServer(
+        (req) async => _json({
+          'success': true,
+          'league': {'id': 'LIG-9001', 'name': 'Tildes'}
+        }, status: 201),
+        () => service.createLeague(
+          name: 'Tildes',
+          pin: '5678',
+          initialParticipants: [],
+        ),
+      );
+
+      await service.addParticipantToLeague(league.id, 'José');
+      await service.addParticipantToLeague(league.id, 'Jose');
+
+      expect(service.getLeague(league.id)!.participants, ['José']);
+    });
+
+    test('League.fromMap tolera scores double y sin pin devuelve cadena vacía',
+        () {
+      final parsed = League.fromMap({
+        'id': 'LIG-2222',
+        'name': 'Legada',
+        'createdAt': '2026-03-01T12:00:00.000Z',
+        'matches': [
+          {
+            'id': 'm-dbl',
+            'date': '2026-03-01T12:00:00.000Z',
+            'team1DisplayName': 'A & B',
+            'team2DisplayName': 'C & D',
+            'team1Members': ['A', 'B'],
+            'team2Members': ['C', 'D'],
+            'score1': 200.0,
+            'score2': 150.0,
+            'winnerTeam': 1.0,
+          },
+        ],
+      });
+
+      expect(parsed.pin, '');
+      expect(parsed.matches.first.score1, 200);
+      expect(parsed.matches.first.score2, 150);
+      expect(parsed.matches.first.winnerTeam, 1);
+    });
+
+    test(
+        'recordMatchToLeague encola si hay un sync en curso y sincroniza luego',
+        () async {
+      SharedPreferences.setMockInitialValues({
+        _leaguesKey: _seedLeague(id: 'LIG-Q1', name: 'Cola', pin: '4321'),
+        _activeKey: 'LIG-Q1',
+      });
+      await service.resetForTesting();
+
+      final releaseSync = Completer<void>();
+      final syncedPayloads = <String>[];
+      var firstSync = true;
+
+      await runWithFakeServer((request) async {
+        syncedPayloads.add(request.body);
+        if (firstSync) {
+          firstSync = false;
+          await releaseSync.future;
+        }
+        return _json({
+          'success': true,
+          'league': {
+            'id': 'LIG-Q1',
+            'name': 'Cola',
+            'createdAt': DateTime(2026, 1, 1).toIso8601String(),
+            'participants': <String>[],
+            'teams': <String, dynamic>{},
+            'players': <String, dynamic>{},
+            'matches': <dynamic>[],
+          },
+        });
+      }, () async {
+        final inFlight = service.syncActiveLeagueWithServer();
+        await Future<void>.delayed(Duration.zero);
+
+        await service.recordMatchToLeague('LIG-Q1', _match(id: 'm-queued'));
+
+        releaseSync.complete();
+        await inFlight;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+
+      expect(
+        syncedPayloads.any((body) => body.contains('m-queued')),
+        isTrue,
+        reason: 'la partida encolada debe sincronizarse al liberarse el lock',
+      );
     });
   });
 }

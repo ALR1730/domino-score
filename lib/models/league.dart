@@ -60,9 +60,9 @@ class LeagueMatch {
               ?.map((e) => e.toString())
               .toList() ??
           [],
-      score1: map['score1'] as int? ?? 0,
-      score2: map['score2'] as int? ?? 0,
-      winnerTeam: map['winnerTeam'] as int? ?? 1,
+      score1: (map['score1'] as num?)?.toInt() ?? 0,
+      score2: (map['score2'] as num?)?.toInt() ?? 0,
+      winnerTeam: (map['winnerTeam'] as num?)?.toInt() ?? 1,
     );
   }
 }
@@ -151,17 +151,23 @@ class League {
   void addParticipant(String name) {
     final clean = name.trim();
     if (clean.isEmpty) return;
-    if (!participants.any((p) => p.toLowerCase() == clean.toLowerCase())) {
+    final key = NameParser.removeDiacritics(clean.toLowerCase());
+    if (key.isEmpty) return;
+    final alreadyExists = participants.any(
+      (p) => NameParser.removeDiacritics(p.trim().toLowerCase()) == key,
+    );
+    if (!alreadyExists) {
       participants.add(clean);
-      // Ensure player stat entry exists
-      final key = NameParser.removeDiacritics(clean.toLowerCase());
       players.putIfAbsent(key, () => PlayerStats(key: key, name: clean));
     }
   }
 
   void removeParticipant(String name) {
-    participants
-        .removeWhere((p) => p.toLowerCase() == name.trim().toLowerCase());
+    final targetKey = NameParser.removeDiacritics(name.trim().toLowerCase());
+    if (targetKey.isEmpty) return;
+    participants.removeWhere(
+      (p) => NameParser.removeDiacritics(p.trim().toLowerCase()) == targetKey,
+    );
   }
 
   void recordMatch(LeagueMatch match) {
@@ -255,7 +261,7 @@ class League {
     return League(
       id: map['id'] as String? ?? '',
       name: map['name'] as String? ?? 'Liga',
-      pin: map['pin'] as String? ?? '1234',
+      pin: map['pin'] as String? ?? '',
       createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ??
           DateTime.now(),
       participants: (map['participants'] as List<dynamic>?)

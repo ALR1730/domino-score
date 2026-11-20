@@ -223,17 +223,20 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                     content: Text(
                         'Sincronizando todas las ligas con el servidor...')),
               );
-              await LeagueService().syncAllLeaguesWithServer();
+              final synced = await LeagueService().syncAllLeaguesWithServer();
               await _fetchServerRankings();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                        '✅ Clasificaciones sincronizadas en el servidor Render.'),
-                    backgroundColor: AppColors.emerald600,
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    synced
+                        ? '✅ Clasificaciones sincronizadas en el servidor.'
+                        : '⚠️ No se pudieron sincronizar todas las ligas.',
                   ),
-                );
-              }
+                  backgroundColor:
+                      synced ? AppColors.emerald600 : AppColors.amber600,
+                ),
+              );
             },
           ),
           if (!_useServer)

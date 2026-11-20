@@ -43,18 +43,21 @@ class _LeagueManagerScreenState extends State<LeagueManagerScreen>
       _serverError = null;
     });
 
-    try {
-      final list = await _apiClient.fetchServerLeagues();
-      setState(() {
-        _serverLeagues = list;
-        _isLoadingServer = false;
-      });
-    } catch (e) {
+    final list = await _apiClient.fetchServerLeagues();
+    if (!mounted) return;
+
+    if (list == null) {
       setState(() {
         _serverError = 'No se pudieron cargar las ligas del servidor.';
         _isLoadingServer = false;
       });
+      return;
     }
+
+    setState(() {
+      _serverLeagues = list;
+      _isLoadingServer = false;
+    });
   }
 
   void _showJoinDialogForServerLeague(String leagueId, String leagueName) {
