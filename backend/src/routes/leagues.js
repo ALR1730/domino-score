@@ -3,16 +3,48 @@ const router = express.Router();
 const store = require("../models/store");
 const rateLimit = require("../middleware/rateLimit");
 const asyncHandler = require("../middleware/asyncHandler");
+const { generateRandomPin, pinMatches } = require("../utils/pin");
+const {
+  MAX_PARTICIPANT_LEN,
+  cleanString,
+  validateLeagueId,
+  validatePin,
+  validateCreateLeague,
+  validateJoin,
+  validateParticipant,
+  validateMatchPayload,
+  validateSyncPayload,
+} = require("../validation/leagueSchemas");
 
-// Fuerza bruta de PINs: muy poco espacio de maniobra (4 dígitos),
-// así que limitamos los intentos por IP en los endpoints sensibles.
-// OJO: /sync lo llama el cliente automáticamente cada pocos segundos,
-// por eso tiene su propio límite (muy superior), solo como freno anti-DoS.
-const pinAttemptLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
-const syncLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 600 });
-// Las partidas se registran al terminar cada juego: límite holgado,
-// pero evita usar el endpoint como vector de fuerza bruta contra el PIN.
-const matchLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 60 });
+const WINDOW_15_MIN_MS = 15 * 60 * 1000;
+
+// Contabiliza únicamente intentos fallidos (401) para frenar fuerza bruta
+// por IP y por liga sin interrumpir el polling válido de los clientes.
+const failedPinByIpLimiter = rateLimit({
+  windowMs: WINDOW_15_MIN_MS,
+  max: 10,
+  countOnlyStatus: 401,
+});
+const failedPinByLeagueLimiter = rateLimit({
+  windowMs: WINDOW_15_MIN_MS,
+  max: 25,
+  countOnlyStatus: 401,
+  keyGenerator: (req) => {
+    const target =
+      (req.params && req.params.id) ||
+      (req.body && (req.body.id || req.body.nameOrId));
+    return typeof target === "string" && target.trim()
+      ? target.trim().toLowerCase()
+      : null;
+  },
+});
+const pinProtection = [failedPinByIpLimiter, failedPinByLeagueLimiter];
+
+// Topes generales de tráfico por IP (anti-DoS)
+const createLeagueLimiter = rateLimit({ windowMs: WINDOW_15_MIN_MS, max: 30 });
+const joinTrafficLimiter = rateLimit({ windowMs: WINDOW_15_MIN_MS, max: 30 });
+const syncTrafficLimiter = rateLimit({ windowMs: WINDOW_15_MIN_MS, max: 300 });
+const matchTrafficLimiter = rateLimit({ windowMs: WINDOW_15_MIN_MS, max: 60 });
 
 // Devuelve la liga SIN exponer el PIN en la respuesta.
 const toSafeLeague = (league) => {
@@ -21,98 +53,97 @@ const toSafeLeague = (league) => {
   return safe;
 };
 
-const pinMatches = (league, pin) =>
-  pin != null && String(pin).trim() === String(league.pin).trim();
-
-/** Entero >= 0 desde string/número; null si no es válido. */
-const toScore = (value, fallback = 0) => {
-  if (value === undefined || value === null || value === "") return fallback;
-  const n = Number(value);
-  if (!Number.isInteger(n) || n < 0) return null;
-  return n;
-};
-
-/** Lista de nombres no vacíos; null si el formato es inválido. */
-const toMemberList = (value) => {
-  if (!Array.isArray(value) || value.length === 0) return null;
-  const members = value.map((m) => (typeof m === "string" ? m.trim() : "")).filter(Boolean);
-  return members.length > 0 ? members : null;
-};
-
 // GET /api/leagues - Lista pública de ligas (sin PIN)
 router.get("/", (req, res) => {
   const leagues = store.getAllLeaguesPublic();
   res.json({ success: true, leagues });
 });
 
-// Genera un PIN de 4 dígitos aleatorio (nunca el adivinable "1234").
-const randomPin = () => String(1000 + Math.floor(Math.random() * 9000));
-
 // POST /api/leagues - Crear nueva liga
-router.post("/", asyncHandler(async (req, res) => {
-  const { id, name, pin, initialParticipants } = req.body;
-  if (!name || !name.trim()) {
-    return res.status(400).json({ success: false, error: "El nombre de la liga es obligatorio." });
-  }
+router.post(
+  "/",
+  createLeagueLimiter,
+  asyncHandler(async (req, res) => {
+    const parsed = validateCreateLeague(req.body);
+    if (!parsed.ok) {
+      return res.status(parsed.status).json({ success: false, error: parsed.error });
+    }
 
-  const requestedPin = pin && String(pin).trim() ? String(pin).trim() : randomPin();
+    const requestedPin = parsed.data.pin || generateRandomPin();
 
-  const league = await store.createLeague({
-    id,
-    name,
-    pin: requestedPin,
-    initialParticipants: initialParticipants || [],
-  });
+    const league = await store.createLeague({
+      id: parsed.data.id,
+      name: parsed.data.name,
+      pin: requestedPin,
+      initialParticipants: parsed.data.initialParticipants,
+    });
 
-  // El creador (única vez, igual que /join) recibe el PIN que quedó guardado.
-  res.status(201).json({
-    success: true,
-    league: toSafeLeague(league),
-    pin: league.pin,
-  });
-}));
+    // El creador (única vez, igual que /join) recibe el PIN que quedó guardado.
+    res.status(201).json({
+      success: true,
+      league: toSafeLeague(league),
+      pin: league.pin,
+    });
+  })
+);
 
 // POST /api/leagues/sync - Sincronizar liga completa y todas sus partidas.
-// Requiere el PIN correcto cuando la liga ya existe en el servidor; el PIN
-// almacenado en el servidor NUNCA se sobreescribe desde aquí.
-router.post("/sync", syncLimiter, asyncHandler(async (req, res) => {
-  const leagueData = req.body;
-  if (!leagueData || !leagueData.id) {
-    return res.status(400).json({ success: false, error: "Datos de liga requeridos (incluyendo id)." });
+router.post(
+  "/sync",
+  syncTrafficLimiter,
+  ...pinProtection,
+  asyncHandler(async (req, res) => {
+    const parsed = validateSyncPayload(req.body);
+    if (!parsed.ok) {
+      return res.status(parsed.status).json({ success: false, error: parsed.error });
+    }
+
+    const existing = store.getLeagueById(parsed.data.id);
+    if (existing) {
+      if (!pinMatches(existing.pin, parsed.data.pin)) {
+        return res.status(401).json({
+          success: false,
+          error:
+            "PIN incorrecto para sincronizar la liga. Verifica la clave de acceso.",
+        });
+      }
+    } else if (!parsed.data.pin) {
+      return res.status(401).json({
+        success: false,
+        error: "Se requiere un PIN para crear la liga al sincronizar.",
+      });
+    }
+
+    const league = await store.syncLeague(parsed.data);
+    if (!league) {
+      return res
+        .status(500)
+        .json({ success: false, error: "No se pudo sincronizar la liga." });
+    }
+
+    res.json({ success: true, league: toSafeLeague(league) });
+  })
+);
+
+// POST /api/leagues/join - Validar PIN y unirse a liga desde otro dispositivo.
+router.post("/join", joinTrafficLimiter, ...pinProtection, (req, res) => {
+  const parsed = validateJoin(req.body);
+  if (!parsed.ok) {
+    return res.status(parsed.status).json({ success: false, error: parsed.error });
   }
 
-  const existing = store.getLeagueById(String(leagueData.id).trim());
-  if (existing && !pinMatches(existing, leagueData.pin)) {
-    return res.status(401).json({
+  const league = store.findLeagueByNameOrId(parsed.data.nameOrId);
+  if (!league) {
+    return res.status(404).json({
       success: false,
-      error: "PIN incorrecto para sincronizar la liga. Verifica la clave de acceso.",
+      error: "Liga no encontrada con el nombre o código ingresado.",
     });
   }
 
-  const league = await store.syncLeague(leagueData);
-  if (!league) {
-    return res.status(500).json({ success: false, error: "No se pudo sincronizar la liga." });
-  }
-
-  res.json({ success: true, league: toSafeLeague(league) });
-}));
-
-// POST /api/leagues/join - Validar PIN y unirse a liga desde otro dispositivo.
-// (Es el único endpoint que devuelve el PIN: solo responde con él a quien ya
-// lo acertó, y el cliente lo necesita para sincronizar/eliminar la liga.)
-router.post("/join", pinAttemptLimiter, (req, res) => {
-  const { nameOrId, pin } = req.body;
-  if (!nameOrId || !pin) {
-    return res.status(400).json({ success: false, error: "Nombre/código de liga y PIN son requeridos." });
-  }
-
-  const league = store.findLeagueByNameOrId(nameOrId);
-  if (!league) {
-    return res.status(404).json({ success: false, error: "Liga no encontrada con el nombre o código ingresado." });
-  }
-
-  if (!pinMatches(league, pin)) {
-    return res.status(401).json({ success: false, error: "Clave de acceso (PIN) incorrecta." });
+  if (!pinMatches(league.pin, parsed.data.pin)) {
+    return res
+      .status(401)
+      .json({ success: false, error: "Clave de acceso (PIN) incorrecta." });
   }
 
   res.json({ success: true, league });
@@ -120,20 +151,46 @@ router.post("/join", pinAttemptLimiter, (req, res) => {
 
 // GET /api/leagues/:id - Obtener liga con participantes y rankings (sin PIN)
 router.get("/:id", (req, res) => {
-  const league = store.getLeagueById(req.params.id);
+  const idCheck = validateLeagueId(req.params.id);
+  if (!idCheck.ok) {
+    return res.status(idCheck.status).json({ success: false, error: idCheck.error });
+  }
+
+  const league = store.getLeagueById(idCheck.data);
   if (!league) {
     return res.status(404).json({ success: false, error: "Liga no encontrada." });
   }
   res.json({ success: true, league: toSafeLeague(league) });
 });
 
-const handleDelete = asyncHandler(async (req, res) => {
-  const id = req.params.id || (req.body && req.body.id);
-  const pin = (req.body && req.body.pin) || req.query.pin;
-  if (!id) {
-    return res.status(400).json({ success: false, error: "ID de la liga es requerido." });
+function extractPinForDelete(req, routeLabel) {
+  const bodyPin = req.body && req.body.pin;
+  if (bodyPin !== undefined && bodyPin !== null) {
+    return validatePin(bodyPin, { required: false });
   }
-  const result = await store.deleteLeague(id, pin);
+  if (req.query && req.query.pin !== undefined) {
+    console.warn(`⚠️ Uso deprecado de PIN en query string en ${routeLabel}`);
+    return validatePin(req.query.pin, { required: false });
+  }
+  return { ok: true, data: null };
+}
+
+const handleDelete = asyncHandler(async (req, res) => {
+  const rawId =
+    req.params.id !== undefined ? req.params.id : req.body && req.body.id;
+  const idCheck = validateLeagueId(rawId);
+  if (!idCheck.ok) {
+    return res
+      .status(400)
+      .json({ success: false, error: "ID de la liga es requerido." });
+  }
+
+  const pinCheck = extractPinForDelete(req, "DELETE /api/leagues");
+  if (!pinCheck.ok) {
+    return res.status(pinCheck.status).json({ success: false, error: pinCheck.error });
+  }
+
+  const result = await store.deleteLeague(idCheck.data, pinCheck.data);
   if (!result.success) {
     const isNotFound = result.error && result.error.includes("no encontrada");
     return res.status(isNotFound ? 404 : 401).json(result);
@@ -142,98 +199,128 @@ const handleDelete = asyncHandler(async (req, res) => {
 });
 
 // DELETE /api/leagues/:id - Eliminar liga (admin con PIN)
-router.delete("/:id", pinAttemptLimiter, handleDelete);
+router.delete("/:id", ...pinProtection, handleDelete);
 
 // POST /api/leagues/:id/delete - Soporte alternativo POST
-router.post("/:id/delete", pinAttemptLimiter, handleDelete);
+router.post("/:id/delete", ...pinProtection, handleDelete);
 
 // POST /api/leagues/delete - Soporte POST con { id, pin } en el body
-router.post("/delete", pinAttemptLimiter, handleDelete);
+router.post("/delete", ...pinProtection, handleDelete);
 
 // POST /api/leagues/:id/participants - Agregar participante (requiere PIN)
-router.post("/:id/participants", pinAttemptLimiter, asyncHandler(async (req, res) => {
-  const { name, pin } = req.body;
-  if (!name || !name.trim()) {
-    return res.status(400).json({ success: false, error: "Nombre de participante requerido." });
-  }
+router.post(
+  "/:id/participants",
+  ...pinProtection,
+  asyncHandler(async (req, res) => {
+    const idCheck = validateLeagueId(req.params.id);
+    if (!idCheck.ok) {
+      return res.status(idCheck.status).json({ success: false, error: idCheck.error });
+    }
 
-  const league = store.getLeagueById(req.params.id);
-  if (!league) {
-    return res.status(404).json({ success: false, error: "Liga no encontrada." });
-  }
-  if (!pinMatches(league, pin)) {
-    return res.status(401).json({ success: false, error: "PIN incorrecto." });
-  }
+    const parsed = validateParticipant(req.body);
+    if (!parsed.ok) {
+      return res.status(parsed.status).json({ success: false, error: parsed.error });
+    }
 
-  const updated = await store.addParticipant(req.params.id, name);
-  res.json({ success: true, participants: updated.participants });
-}));
+    const league = store.getLeagueById(idCheck.data);
+    if (!league) {
+      return res.status(404).json({ success: false, error: "Liga no encontrada." });
+    }
+    if (!pinMatches(league.pin, parsed.data.pin)) {
+      return res.status(401).json({ success: false, error: "PIN incorrecto." });
+    }
+
+    const updated = await store.addParticipant(idCheck.data, parsed.data.name);
+    res.json({ success: true, participants: updated.participants });
+  })
+);
 
 // DELETE /api/leagues/:id/participants/:name - Eliminar participante (requiere PIN)
-// Nota: Express ya decodifica los parámetros de ruta; no volver a llamar
-// a decodeURIComponent (rompía con nombres que contienen "%" -> URIError).
-router.delete("/:id/participants/:name", pinAttemptLimiter, asyncHandler(async (req, res) => {
-  const pin = (req.body && req.body.pin) || req.query.pin;
-  const league = store.getLeagueById(req.params.id);
-  if (!league) {
-    return res.status(404).json({ success: false, error: "Liga no encontrada." });
-  }
-  if (!pinMatches(league, pin)) {
-    return res.status(401).json({ success: false, error: "PIN incorrecto." });
-  }
+router.delete(
+  "/:id/participants/:name",
+  ...pinProtection,
+  asyncHandler(async (req, res) => {
+    const idCheck = validateLeagueId(req.params.id);
+    if (!idCheck.ok) {
+      return res.status(idCheck.status).json({ success: false, error: idCheck.error });
+    }
 
-  const updated = await store.removeParticipant(req.params.id, req.params.name);
-  res.json({ success: true, participants: updated.participants });
-}));
+    const nameCheck = cleanString(req.params.name, {
+      min: 1,
+      max: MAX_PARTICIPANT_LEN,
+      required: true,
+      label: "Nombre de participante",
+    });
+    if (!nameCheck.ok) {
+      return res.status(nameCheck.status).json({ success: false, error: nameCheck.error });
+    }
+
+    const pinCheck = extractPinForDelete(
+      req,
+      "DELETE /api/leagues/:id/participants"
+    );
+    if (!pinCheck.ok) {
+      return res.status(pinCheck.status).json({ success: false, error: pinCheck.error });
+    }
+
+    const league = store.getLeagueById(idCheck.data);
+    if (!league) {
+      return res.status(404).json({ success: false, error: "Liga no encontrada." });
+    }
+    if (!pinMatches(league.pin, pinCheck.data)) {
+      return res.status(401).json({ success: false, error: "PIN incorrecto." });
+    }
+
+    const updated = await store.removeParticipant(idCheck.data, nameCheck.value);
+    res.json({ success: true, participants: updated.participants });
+  })
+);
 
 // POST /api/leagues/:id/matches - Registrar partida oficial (requiere PIN)
-router.post("/:id/matches", matchLimiter, asyncHandler(async (req, res) => {
-  const { id: matchId, date, team1DisplayName, team2DisplayName, team1Members, team2Members, score1, score2, winnerTeam, leagueName, pin } = req.body;
-
-  const members1 = toMemberList(team1Members);
-  const members2 = toMemberList(team2Members);
-  if (!members1 || !members2) {
-    return res.status(400).json({ success: false, error: "Se requieren los miembros de ambos equipos." });
-  }
-
-  const s1 = toScore(score1);
-  const s2 = toScore(score2);
-  if (s1 === null || s2 === null) {
-    return res.status(400).json({ success: false, error: "Los puntajes deben ser enteros mayores o iguales a 0." });
-  }
-
-  const winner = Number(winnerTeam);
-  if (winner !== 1 && winner !== 2) {
-    return res.status(400).json({ success: false, error: "winnerTeam debe ser 1 o 2." });
-  }
-
-  const leagueId = String(req.params.id).trim();
-  const existing = store.getLeagueById(leagueId);
-  if (existing) {
-    if (!pinMatches(existing, pin)) {
-      return res.status(401).json({ success: false, error: "PIN incorrecto para registrar partidas en esta liga." });
+router.post(
+  "/:id/matches",
+  matchTrafficLimiter,
+  ...pinProtection,
+  asyncHandler(async (req, res) => {
+    const idCheck = validateLeagueId(req.params.id);
+    if (!idCheck.ok) {
+      return res.status(idCheck.status).json({ success: false, error: idCheck.error });
     }
-  } else if (!pin || !String(pin).trim()) {
-    // Auto-creación de la liga: exige un PIN explícito, nunca se crea sin clave.
-    return res.status(401).json({ success: false, error: "Se requiere un PIN para crear la liga al registrar la partida." });
-  }
 
-  const match = await store.recordMatch(leagueId, {
-    id: matchId,
-    date,
-    team1DisplayName,
-    team2DisplayName,
-    team1Members: members1,
-    team2Members: members2,
-    score1: s1,
-    score2: s2,
-    winnerTeam: winner,
-    leagueName,
-    pin,
-  });
+    const parsed = validateMatchPayload(req.body);
+    if (!parsed.ok) {
+      return res.status(parsed.status).json({ success: false, error: parsed.error });
+    }
 
-  const league = store.getLeagueById(leagueId);
-  res.status(201).json({ success: true, match, league: toSafeLeague(league) });
-}));
+    const pinCheck = validatePin(req.body && req.body.pin, { required: false });
+    if (!pinCheck.ok) {
+      return res.status(pinCheck.status).json({ success: false, error: pinCheck.error });
+    }
+
+    const leagueId = idCheck.data;
+    const existing = store.getLeagueById(leagueId);
+    if (existing) {
+      if (!pinMatches(existing.pin, pinCheck.data)) {
+        return res.status(401).json({
+          success: false,
+          error: "PIN incorrecto para registrar partidas en esta liga.",
+        });
+      }
+    } else if (!pinCheck.data) {
+      return res.status(401).json({
+        success: false,
+        error: "Se requiere un PIN para crear la liga al registrar la partida.",
+      });
+    }
+
+    const match = await store.recordMatch(leagueId, {
+      ...parsed.data,
+      pin: pinCheck.data,
+    });
+
+    const league = store.getLeagueById(leagueId);
+    res.status(201).json({ success: true, match, league: toSafeLeague(league) });
+  })
+);
 
 module.exports = router;

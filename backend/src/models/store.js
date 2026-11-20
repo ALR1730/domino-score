@@ -3,7 +3,9 @@ const path = require("path");
 const crypto = require("crypto");
 const mongo = require("../db/mongo");
 const rankingsUtil = require("../utils/rankings");
+const { generateRandomPin, pinMatches } = require("../utils/pin");
 const {
+  extractMembers,
   generateTeamKey,
   formatTeamDisplayName,
   removeDiacritics,
@@ -11,6 +13,7 @@ const {
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "../../data");
 const DATA_FILE = path.join(DATA_DIR, "leagues.json");
+const MAX_ID_ATTEMPTS = 20;
 
 class Store {
   constructor() {
@@ -64,11 +67,11 @@ class Store {
       }
     } catch (err) {
       console.error("Error cargando ligas de MongoDB:", err.message);
-      throw err; // que el arranque decida si esto es fatal (server.js)
+      throw err;
     }
   }
 
-  /** Instantánea local en disco (best-effort): fallback de desarrollo. */
+  /** Instantánea local en disco (best-effort): solo cuando no hay MongoDB activo. */
   saveLocal() {
     try {
       if (!fs.existsSync(DATA_DIR)) {
@@ -87,14 +90,33 @@ class Store {
   }
 
   /**
-   * Persiste el estado. Si MongoDB está conectado, la escritura se ESPERA
-   * (awaited) y sus errores se propagan: la API responde 500 en vez de
-   * dar por buena una persistencia que falló.
-   * @param {object|null} targetLeague solo se persiste esa liga (default: todas)
+   * Persiste una liga candidata siguiendo orden Mongo-first: primero
+   * confirma la escritura en Atlas y recién después actualiza la caché en RAM.
+   */
+  async _commitLeague(candidate) {
+    if (mongo.connected) {
+      const col = mongo.getCollection("leagues");
+      if (col) {
+        await this._upsertInMongo(col, candidate);
+      }
+      this.leagues.set(candidate.id, candidate);
+      return candidate;
+    }
+
+    this.leagues.set(candidate.id, candidate);
+    this.saveLocal();
+    return candidate;
+  }
+
+  /**
+   * Persiste el estado. Con MongoDB activo omite escritura síncrona a disco
+   * para no bloquear el event loop.
    */
   async save(targetLeague = null) {
-    this.saveLocal();
-    if (!mongo.connected) return;
+    if (!mongo.connected) {
+      this.saveLocal();
+      return;
+    }
     const col = mongo.getCollection("leagues");
     if (!col) return;
 
@@ -105,6 +127,196 @@ class Store {
         await this._upsertInMongo(col, league);
       }
     }
+  }
+
+  _generateUniqueLeagueId(requestedId = null) {
+    const cleanRequested =
+      typeof requestedId === "string" ? requestedId.trim() : "";
+    if (cleanRequested && !this.leagues.has(cleanRequested)) {
+      return cleanRequested;
+    }
+
+    for (let i = 0; i < MAX_ID_ATTEMPTS; i++) {
+      const candidate = `LIG-${crypto.randomInt(1000, 10000)}`;
+      if (!this.leagues.has(candidate)) return candidate;
+    }
+
+    for (let i = 0; i < MAX_ID_ATTEMPTS; i++) {
+      const candidate = `LIG-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+      if (!this.leagues.has(candidate)) return candidate;
+    }
+
+    return `LIG-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+  }
+
+  _buildNewLeague({ id, name, pin, initialParticipants = [] }) {
+    const leagueId = this._generateUniqueLeagueId(id);
+    const suffix = leagueId.replace(/^LIG-/, "");
+    const cleanName = typeof name === "string" ? name.trim() : "";
+    const cleanPin = typeof pin === "string" ? pin.trim() : "";
+
+    const rawParticipants = Array.isArray(initialParticipants)
+      ? initialParticipants
+      : [];
+    const cleanParticipants = [];
+    const playersMap = {};
+
+    for (const raw of rawParticipants) {
+      if (typeof raw !== "string") continue;
+      const trimmed = raw.trim();
+      if (!trimmed) continue;
+      const key = removeDiacritics(trimmed.toLowerCase());
+      if (!key || playersMap[key]) continue;
+      cleanParticipants.push(trimmed);
+      playersMap[key] = { key, name: trimmed, wins: 0, matchesPlayed: 0 };
+    }
+
+    return {
+      id: leagueId,
+      name: cleanName || `Liga ${suffix}`,
+      pin: cleanPin || generateRandomPin(),
+      createdAt: new Date().toISOString(),
+      participants: cleanParticipants,
+      teams: {},
+      players: playersMap,
+      matches: [],
+    };
+  }
+
+  _applyAddParticipant(league, participantName) {
+    if (typeof participantName !== "string") return false;
+    const clean = participantName.trim();
+    if (!clean) return false;
+
+    const targetKey = removeDiacritics(clean.toLowerCase());
+    if (!targetKey) return false;
+
+    const alreadyExists = (league.participants || []).some(
+      (p) => removeDiacritics(String(p).trim().toLowerCase()) === targetKey
+    );
+    if (alreadyExists) return false;
+
+    league.participants.push(clean);
+    if (!league.players[targetKey]) {
+      league.players[targetKey] = {
+        key: targetKey,
+        name: clean,
+        wins: 0,
+        matchesPlayed: 0,
+      };
+    }
+    return true;
+  }
+
+  _applyRemoveParticipant(league, participantName) {
+    if (typeof participantName !== "string") return false;
+    const targetKey = removeDiacritics(participantName.trim().toLowerCase());
+    if (!targetKey) return false;
+
+    const prevLength = league.participants.length;
+    league.participants = league.participants.filter(
+      (p) => removeDiacritics(String(p).trim().toLowerCase()) !== targetKey
+    );
+    return league.participants.length !== prevLength;
+  }
+
+  _applyRecordMatch(league, matchData) {
+    const {
+      id: customMatchId,
+      date,
+      team1DisplayName,
+      team2DisplayName,
+      team1Members,
+      team2Members,
+      score1 = 0,
+      score2 = 0,
+      winnerTeam = 1,
+    } = matchData;
+
+    const members1 =
+      Array.isArray(team1Members) && team1Members.length > 0
+        ? team1Members
+        : extractMembers(team1DisplayName || "");
+    const members2 =
+      Array.isArray(team2Members) && team2Members.length > 0
+        ? team2Members
+        : extractMembers(team2DisplayName || "");
+
+    const matchId = customMatchId || `match_${crypto.randomUUID()}`;
+    const duplicated = league.matches.find((m) => String(m.id) === String(matchId));
+    if (duplicated) {
+      return { match: duplicated, added: false };
+    }
+
+    const match = {
+      id: matchId,
+      date: date || new Date().toISOString(),
+      team1DisplayName: team1DisplayName || formatTeamDisplayName(members1),
+      team2DisplayName: team2DisplayName || formatTeamDisplayName(members2),
+      team1Members: members1,
+      team2Members: members2,
+      score1,
+      score2,
+      winnerTeam: Number(winnerTeam),
+    };
+
+    league.matches.unshift(match);
+
+    const key1 = generateTeamKey(members1);
+    if (key1) {
+      if (!league.teams[key1]) {
+        league.teams[key1] = {
+          key: key1,
+          displayName: match.team1DisplayName,
+          members: members1,
+          wins: 0,
+          matchesPlayed: 0,
+          totalPoints: 0,
+        };
+      }
+      league.teams[key1].matchesPlayed += 1;
+      league.teams[key1].totalPoints += score1;
+      if (match.winnerTeam === 1) league.teams[key1].wins += 1;
+    }
+
+    const key2 = generateTeamKey(members2);
+    if (key2) {
+      if (!league.teams[key2]) {
+        league.teams[key2] = {
+          key: key2,
+          displayName: match.team2DisplayName,
+          members: members2,
+          wins: 0,
+          matchesPlayed: 0,
+          totalPoints: 0,
+        };
+      }
+      league.teams[key2].matchesPlayed += 1;
+      league.teams[key2].totalPoints += score2;
+      if (match.winnerTeam === 2) league.teams[key2].wins += 1;
+    }
+
+    for (const m of members1) {
+      const key = removeDiacritics(String(m).trim().toLowerCase());
+      if (!key) continue;
+      if (!league.players[key]) {
+        league.players[key] = { key, name: m, wins: 0, matchesPlayed: 0 };
+      }
+      league.players[key].matchesPlayed += 1;
+      if (match.winnerTeam === 1) league.players[key].wins += 1;
+    }
+
+    for (const m of members2) {
+      const key = removeDiacritics(String(m).trim().toLowerCase());
+      if (!key) continue;
+      if (!league.players[key]) {
+        league.players[key] = { key, name: m, wins: 0, matchesPlayed: 0 };
+      }
+      league.players[key].matchesPlayed += 1;
+      if (match.winnerTeam === 2) league.players[key].wins += 1;
+    }
+
+    return { match, added: true };
   }
 
   getAllLeaguesPublic() {
@@ -121,11 +333,15 @@ class Store {
   }
 
   getLeagueById(id) {
+    if (typeof id !== "string") return null;
     return this.leagues.get(id) || null;
   }
 
   findLeagueByNameOrId(nameOrId) {
-    const search = (nameOrId || "").trim().toLowerCase();
+    if (typeof nameOrId !== "string") return null;
+    const search = nameOrId.trim().toLowerCase();
+    if (!search) return null;
+
     for (const l of this.leagues.values()) {
       if (
         l.id.toLowerCase() === search ||
@@ -142,17 +358,17 @@ class Store {
     if (!league) {
       return { success: false, error: "Liga no encontrada." };
     }
-    if (!pin || String(pin).trim() !== league.pin) {
+    if (!pinMatches(league.pin, pin)) {
       return { success: false, error: "PIN incorrecto para eliminar la liga." };
     }
 
-    // Mongo primero (awaited): si falla, la liga sigue existiendo y el
-    // cliente recibe 500 y puede reintentar, sin estados a medias.
     if (mongo.connected) {
       const col = mongo.getCollection("leagues");
       if (col) {
         await col.deleteOne({ _id: id });
       }
+      this.leagues.delete(id);
+      return { success: true };
     }
 
     this.leagues.delete(id);
@@ -161,59 +377,45 @@ class Store {
   }
 
   async createLeague({ id, name, pin, initialParticipants = [] }) {
-    const randomDigits = Math.floor(1000 + Math.random() * 9000);
-    let leagueId = (id && String(id).trim()) || `LIG-${randomDigits}`;
-
-    // Colisión de ID: nunca sobrescribir una liga existente
-    while (this.leagues.has(leagueId)) {
-      leagueId = `LIG-${Math.floor(1000 + Math.random() * 9000)}`;
-    }
-
-    const cleanParticipants = Array.isArray(initialParticipants)
-      ? initialParticipants.map((p) => String(p).trim()).filter(Boolean)
-      : [];
-
-    const playersMap = {};
-    for (const p of cleanParticipants) {
-      const key = removeDiacritics(p.toLowerCase());
-      playersMap[key] = { key, name: p, wins: 0, matchesPlayed: 0 };
-    }
-
-    const league = {
-      id: leagueId,
-      name: (name && name.trim()) || `Liga ${randomDigits}`,
-      pin: (pin && String(pin).trim()) || String(1000 + Math.floor(Math.random() * 9000)),
-      createdAt: new Date().toISOString(),
-      participants: cleanParticipants,
-      teams: {},
-      players: playersMap,
-      matches: [],
-    };
-
-    this.leagues.set(leagueId, league);
-    await this.save(league);
-    return league;
+    const candidate = this._buildNewLeague({
+      id,
+      name,
+      pin,
+      initialParticipants,
+    });
+    return await this._commitLeague(candidate);
   }
 
   async syncLeague(leagueData) {
-    if (!leagueData || !leagueData.id) return null;
-    const id = String(leagueData.id).trim();
-    let league = this.getLeagueById(id);
+    if (!leagueData || typeof leagueData.id !== "string" || !leagueData.id.trim()) {
+      return null;
+    }
+    const id = leagueData.id.trim();
+    const existing = this.getLeagueById(id);
 
-    if (!league) {
-      league = await this.createLeague({
+    let candidate;
+    if (!existing) {
+      const cleanPin = typeof leagueData.pin === "string" ? leagueData.pin.trim() : "";
+      if (!cleanPin) {
+        const err = new Error("Se requiere un PIN para crear la liga al sincronizar.");
+        err.statusCode = 401;
+        throw err;
+      }
+      candidate = this._buildNewLeague({
         id,
         name: leagueData.name || id,
-        pin: leagueData.pin || "1234",
+        pin: cleanPin,
         initialParticipants: leagueData.participants || [],
       });
     } else {
-      // El PIN almacenado NUNCA se modifica desde sync: es el secreto que
-      // autoriza a unirse/eliminar. (La validación del PIN ocurre en la ruta.)
-      if (leagueData.name && leagueData.name.trim()) league.name = leagueData.name.trim();
+      // El PIN almacenado NUNCA se modifica desde sync.
+      candidate = structuredClone(existing);
+      if (typeof leagueData.name === "string" && leagueData.name.trim()) {
+        candidate.name = leagueData.name.trim();
+      }
       if (Array.isArray(leagueData.participants)) {
         for (const p of leagueData.participants) {
-          this.addParticipant(id, p, { persist: false });
+          this._applyAddParticipant(candidate, p);
         }
       }
     }
@@ -221,158 +423,90 @@ class Store {
     if (Array.isArray(leagueData.matches)) {
       for (const m of leagueData.matches) {
         if (!m) continue;
-        const matchId = String(m.id || "");
-        if (!league.matches.some((existing) => String(existing.id) === matchId)) {
-          await this.recordMatch(id, {
-            id: matchId,
-            date: m.date,
-            team1DisplayName: m.team1DisplayName,
-            team2DisplayName: m.team2DisplayName,
-            team1Members: m.team1Members,
-            team2Members: m.team2Members,
-            score1: Number(m.score1) || 0,
-            score2: Number(m.score2) || 0,
-            winnerTeam: Number(m.winnerTeam) || 1,
-          }, { persist: false });
-        }
+        this._applyRecordMatch(candidate, {
+          id: m.id,
+          date: m.date,
+          team1DisplayName: m.team1DisplayName,
+          team2DisplayName: m.team2DisplayName,
+          team1Members: m.team1Members,
+          team2Members: m.team2Members,
+          score1: Number(m.score1) || 0,
+          score2: Number(m.score2) || 0,
+          winnerTeam: Number(m.winnerTeam) || 1,
+        });
       }
     }
 
-    await this.save(league);
-    return this.getLeagueById(id);
+    return await this._commitLeague(candidate);
   }
 
   async addParticipant(leagueId, participantName, { persist = true } = {}) {
-    const league = this.getLeagueById(leagueId);
-    if (!league) return null;
+    const existing = this.getLeagueById(leagueId);
+    if (!existing) return null;
 
-    const clean = String(participantName).trim();
-    if (!clean) return league;
-
-    if (!league.participants.some((p) => p.toLowerCase() === clean.toLowerCase())) {
-      league.participants.push(clean);
-      const key = removeDiacritics(clean.toLowerCase());
-      if (!league.players[key]) {
-        league.players[key] = { key, name: clean, wins: 0, matchesPlayed: 0 };
-      }
-      if (persist) await this.save(league);
+    if (!persist) {
+      this._applyAddParticipant(existing, participantName);
+      return existing;
     }
-    return league;
+
+    const candidate = structuredClone(existing);
+    const changed = this._applyAddParticipant(candidate, participantName);
+    if (!changed) return existing;
+
+    return await this._commitLeague(candidate);
   }
 
   async removeParticipant(leagueId, participantName, { persist = true } = {}) {
-    const league = this.getLeagueById(leagueId);
-    if (!league) return null;
+    const existing = this.getLeagueById(leagueId);
+    if (!existing) return null;
 
-    const target = String(participantName).trim().toLowerCase();
-    league.participants = league.participants.filter(
-      (p) => p.toLowerCase() !== target
-    );
-    if (persist) await this.save(league);
-    return league;
+    if (!persist) {
+      this._applyRemoveParticipant(existing, participantName);
+      return existing;
+    }
+
+    const candidate = structuredClone(existing);
+    const changed = this._applyRemoveParticipant(candidate, participantName);
+    if (!changed) return existing;
+
+    return await this._commitLeague(candidate);
   }
 
   async recordMatch(leagueId, matchData, { persist = true } = {}) {
-    let league = this.getLeagueById(leagueId);
-    if (!league) {
-      const members = [...(matchData.team1Members || []), ...(matchData.team2Members || [])];
-      league = await this.createLeague({
+    const existing = this.getLeagueById(leagueId);
+    let candidate;
+
+    if (!existing) {
+      const cleanPin = typeof matchData.pin === "string" ? matchData.pin.trim() : "";
+      if (!cleanPin) {
+        const err = new Error(
+          "Se requiere un PIN para crear la liga al registrar la partida."
+        );
+        err.statusCode = 401;
+        throw err;
+      }
+      const members = [
+        ...(matchData.team1Members || []),
+        ...(matchData.team2Members || []),
+      ];
+      candidate = this._buildNewLeague({
         id: leagueId,
         name: matchData.leagueName || `Liga ${leagueId}`,
-        pin: matchData.pin || "1234",
+        pin: cleanPin,
         initialParticipants: members,
       });
+    } else {
+      candidate = structuredClone(existing);
     }
 
-    const {
-      id: customMatchId,
-      date,
-      team1DisplayName,
-      team2DisplayName,
-      team1Members = [],
-      team2Members = [],
-      score1 = 0,
-      score2 = 0,
-      winnerTeam = 1,
-    } = matchData;
+    const { match, added } = this._applyRecordMatch(candidate, matchData);
+    if (!added) return match;
 
-    // crypto.randomUUID: sin colisiones prácticas (antes Date.now + aleatorio)
-    const matchId = customMatchId || `match_${crypto.randomUUID()}`;
-
-    // Evitar contar partidas duplicadas
-    const duplicated = league.matches.find((m) => String(m.id) === String(matchId));
-    if (duplicated) return duplicated;
-
-    const match = {
-      id: matchId,
-      date: date || new Date().toISOString(),
-      team1DisplayName: team1DisplayName || formatTeamDisplayName(team1Members),
-      team2DisplayName: team2DisplayName || formatTeamDisplayName(team2Members),
-      team1Members,
-      team2Members,
-      score1,
-      score2,
-      winnerTeam: Number(winnerTeam),
-    };
-
-    league.matches.unshift(match);
-
-    // Update Team 1
-    const key1 = generateTeamKey(team1Members);
-    if (key1) {
-      if (!league.teams[key1]) {
-        league.teams[key1] = {
-          key: key1,
-          displayName: match.team1DisplayName,
-          members: team1Members,
-          wins: 0,
-          matchesPlayed: 0,
-          totalPoints: 0,
-        };
-      }
-      league.teams[key1].matchesPlayed += 1;
-      league.teams[key1].totalPoints += score1;
-      if (winnerTeam === 1) league.teams[key1].wins += 1;
+    if (persist) {
+      await this._commitLeague(candidate);
+    } else {
+      this.leagues.set(candidate.id, candidate);
     }
-
-    // Update Team 2
-    const key2 = generateTeamKey(team2Members);
-    if (key2) {
-      if (!league.teams[key2]) {
-        league.teams[key2] = {
-          key: key2,
-          displayName: match.team2DisplayName,
-          members: team2Members,
-          wins: 0,
-          matchesPlayed: 0,
-          totalPoints: 0,
-        };
-      }
-      league.teams[key2].matchesPlayed += 1;
-      league.teams[key2].totalPoints += score2;
-      if (winnerTeam === 2) league.teams[key2].wins += 1;
-    }
-
-    // Update individual players
-    for (const m of team1Members) {
-      const key = removeDiacritics(String(m).trim().toLowerCase());
-      if (!league.players[key]) {
-        league.players[key] = { key, name: m, wins: 0, matchesPlayed: 0 };
-      }
-      league.players[key].matchesPlayed += 1;
-      if (winnerTeam === 1) league.players[key].wins += 1;
-    }
-
-    for (const m of team2Members) {
-      const key = removeDiacritics(String(m).trim().toLowerCase());
-      if (!league.players[key]) {
-        league.players[key] = { key, name: m, wins: 0, matchesPlayed: 0 };
-      }
-      league.players[key].matchesPlayed += 1;
-      if (winnerTeam === 2) league.players[key].wins += 1;
-    }
-
-    if (persist) await this.save(league);
     return match;
   }
 
