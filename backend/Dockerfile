@@ -5,16 +5,16 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Copiar dependencias
-COPY package*.json ./
+COPY --chown=node:node package*.json ./
 
 # Instalar dependencias para producción
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copiar código fuente
-COPY . .
+COPY --chown=node:node . .
 
-# Crear directorio de datos para persistencia
-RUN mkdir -p /app/data
+# Crear directorio de datos para persistencia con permisos para usuario no-root
+RUN mkdir -p /app/data && chown -R node:node /app/data
 
 # Exponer puerto del servicio
 EXPOSE 3000
@@ -22,6 +22,9 @@ EXPOSE 3000
 # Variable de entorno de puerto por defecto
 ENV PORT=3000
 ENV NODE_ENV=production
+
+# Ejecutar como usuario sin privilegios
+USER node
 
 # Comando de inicio
 CMD ["node", "src/server.js"]

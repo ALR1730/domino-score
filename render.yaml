@@ -4,12 +4,14 @@ services:
     runtime: node
     plan: free
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: npm ci --omit=dev
     startCommand: node src/server.js
     autoDeploy: true
     healthCheckPath: /health
     envVars:
       - key: PORT
         value: 3000
+      - key: NODE_ENV
+        value: production
       - key: MONGODB_URI
         sync: false

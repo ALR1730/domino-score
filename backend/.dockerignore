@@ -1,5 +1,12 @@
 node_modules
-npm-debug.log
+npm-debug.log*
+*.log
 .git
 .gitignore
+.env
+*.env
+*.env.*
 data/
+test/
+scripts/
+.DS_Store

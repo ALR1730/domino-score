@@ -1,5 +1,6 @@
 node_modules/
 npm-debug.log*
 .env
-backend/node_modules/
-backend/data/*.backup.json
+*.env
+*.env.*
+data/*.json
