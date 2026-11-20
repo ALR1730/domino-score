@@ -1,20 +1,29 @@
 /**
- * Limitador de intentos simple en memoria (sin dependencias externas).
+ * Limitador de intentos en memoria con tope acotado de claves (anti-OOM).
  *
- * Su objetivo es frenar fuerza bruta contra los endpoints que validan PIN
- * (unirse / eliminar / sincronizar ligas). Cada instancia del servidor cuenta
- * sus propios intentos; para el despliegue actual (una sola instancia en
- * Render) eso es suficiente.
+ * Soporta contar todas las solicitudes o únicamente respuestas con un código
+ * de estado específico (p. ej. 401 para frenar fuerza bruta de PIN sin
+ * bloquear tráfico válido de sincronización).
  */
 function rateLimit({
   windowMs = 15 * 60 * 1000,
   max = 10,
+  maxKeys = 10000,
+  keyGenerator = (req) => req.ip || "unknown",
+  countOnlyStatus = null,
   message = "Demasiados intentos. Espera un momento y vuelve a intentarlo.",
 } = {}) {
-  // ip -> lista de timestamps de intentos dentro de la ventana
   const attempts = new Map();
 
   const prune = (list, now) => list.filter((t) => now - t < windowMs);
+
+  const setBounded = (key, list) => {
+    if (!attempts.has(key) && attempts.size >= maxKeys) {
+      const oldestKey = attempts.keys().next().value;
+      if (oldestKey !== undefined) attempts.delete(oldestKey);
+    }
+    attempts.set(key, list);
+  };
 
   // Limpieza periódica para no acumular claves muertas en memoria
   const timer = setInterval(
@@ -29,19 +38,38 @@ function rateLimit({
   if (typeof timer.unref === "function") timer.unref();
 
   return (req, res, next) => {
+    const key = keyGenerator(req);
+    if (!key) return next();
+
     const now = Date.now();
-    const key = req.ip || "unknown";
     const list = prune(attempts.get(key) || [], now);
 
     if (list.length >= max) {
-      attempts.set(key, list);
-      const retryAfterSeconds = Math.ceil((list[0] + windowMs - now) / 1000);
+      setBounded(key, list);
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((list[0] + windowMs - now) / 1000)
+      );
       res.set("Retry-After", String(retryAfterSeconds));
-      return res.status(429).json({ success: false, error: message, retryAfterSeconds });
+      return res
+        .status(429)
+        .json({ success: false, error: message, retryAfterSeconds });
     }
 
-    list.push(now);
-    attempts.set(key, list);
+    if (countOnlyStatus === null) {
+      list.push(now);
+      setBounded(key, list);
+      return next();
+    }
+
+    res.on("finish", () => {
+      if (res.statusCode !== countOnlyStatus) return;
+      const finishedAt = Date.now();
+      const current = prune(attempts.get(key) || [], finishedAt);
+      current.push(finishedAt);
+      setBounded(key, current);
+    });
+
     next();
   };
 }

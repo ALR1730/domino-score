@@ -26,6 +26,10 @@ const {
 } = require("../src/utils/nameParser");
 const rankingsUtil = require("../src/utils/rankings");
 const { createShutdownHandler } = require("../src/utils/shutdown");
+const rateLimit = require("../src/middleware/rateLimit");
+const mongo = require("../src/db/mongo");
+const { generateRandomPin, pinMatches } = require("../src/utils/pin");
+const schemas = require("../src/validation/leagueSchemas");
 
 let server;
 let baseUrl;
@@ -608,4 +612,276 @@ test("seed-league: falla sin variables de entorno requeridas (sin credenciales h
     encoding: "utf-8",
   });
   assert.notEqual(result.status, 0);
+});
+
+// ---------------------------------------------------------------------------
+// Fase 1: Validación estricta, rate limit inteligente e integridad Mongo-first
+// ---------------------------------------------------------------------------
+
+test("validación estricta rechaza tipos y rangos inválidos con 400 (sin 500)", async () => {
+  assert.equal(typeof schemas.validateCreateLeague, "function");
+
+  for (const body of [
+    { name: 123 },
+    { name: {} },
+    { name: "a".repeat(81) },
+    { id: "../bad", name: "Ok" },
+    { name: "Ok", initialParticipants: [123] },
+  ]) {
+    const res = await api("POST", "/api/leagues", body);
+    assert.equal(res.status, 400, `POST /api/leagues debe rechazar ${JSON.stringify(body)}`);
+  }
+
+  for (const body of [
+    { nameOrId: 123, pin: "1234" },
+    { nameOrId: {}, pin: "1234" },
+  ]) {
+    const res = await api("POST", "/api/leagues/join", body);
+    assert.equal(res.status, 400);
+  }
+
+  const created = await api("POST", "/api/leagues", { name: "Valida", pin: "2468" });
+  const id = created.body.league.id;
+
+  const badParticipant = await api("POST", `/api/leagues/${id}/participants`, {
+    name: { $gt: "" },
+    pin: "2468",
+  });
+  assert.equal(badParticipant.status, 400);
+
+  for (const badMatch of [
+    { team1Members: ["Ana"], team2Members: ["Beto"], score1: -10, score2: 0, winnerTeam: 1 },
+    { team1Members: ["Ana"], team2Members: ["Beto"], score1: 999999, score2: 0, winnerTeam: 1 },
+    { team1Members: ["Ana"], team2Members: ["Beto"], score1: 100, score2: 50, winnerTeam: 99 },
+    { team1Members: [], team2Members: ["Beto"], score1: 100, score2: 50, winnerTeam: 1 },
+    { team1Members: ["Ana"], team2Members: ["Beto"], score1: 100, score2: 50, winnerTeam: 1, date: "not-a-date" },
+  ]) {
+    const res = await api("POST", "/api/leagues/sync", {
+      id,
+      name: "Valida",
+      pin: "2468",
+      matches: [badMatch],
+    });
+    assert.equal(res.status, 400, `sync debe rechazar ${JSON.stringify(badMatch)}`);
+  }
+
+  for (const query of [
+    "?year=2026&month=99",
+    "?year=abc&month=1",
+    "?year=2026",
+    "?year=2026&year=2027&month=1",
+  ]) {
+    const res = await api("GET", `/api/rankings/global/teams${query}`);
+    assert.equal(res.status, 400, `rankings debe rechazar ${query}`);
+  }
+});
+
+test("sync: exige PIN al crear liga nueva y acepta formato legado retrocompatible", async () => {
+  const noPin = await api("POST", "/api/leagues/sync", {
+    id: "LIG-SYNC-NOPIN",
+    name: "Sin Pin",
+    pin: "   ",
+    matches: [],
+  });
+  assert.equal(noPin.status, 401);
+
+  const legacyOk = await api("POST", "/api/leagues/sync", {
+    id: "LIG-LEGACY-OK",
+    name: "Liga Legada",
+    pin: "7391",
+    matches: [
+      {
+        id: "m_legacy_1",
+        date: "2026-06-15T18:00:00",
+        team1DisplayName: "Ana y Beto",
+        team2DisplayName: "Carlos & Diana",
+        score1: 200,
+        score2: 140,
+        winnerTeam: 1,
+      },
+    ],
+  });
+  assert.equal(legacyOk.status, 200);
+  assert.equal(legacyOk.body.league.matches.length, 1);
+  assert.deepEqual(legacyOk.body.league.matches[0].team1Members, ["Ana", "Beto"]);
+});
+
+test("rateLimit: respeta maxKeys (evicción FIFO) y bloquea al superar max", () => {
+  const limiter = rateLimit({ windowMs: 60000, max: 2, maxKeys: 3 });
+
+  const invoke = (ip) => {
+    let nextCalled = false;
+    let statusCode = 200;
+    const headers = {};
+    const req = { ip, headers: {} };
+    const res = {
+      set(k, v) {
+        headers[k.toLowerCase()] = v;
+      },
+      status(code) {
+        statusCode = code;
+        return this;
+      },
+      json(payload) {
+        this.body = payload;
+        return this;
+      },
+      on() {},
+    };
+    limiter(req, res, () => {
+      nextCalled = true;
+    });
+    return { nextCalled, statusCode, headers };
+  };
+
+  assert.equal(invoke("10.0.0.1").nextCalled, true);
+  assert.equal(invoke("10.0.0.1").nextCalled, true);
+  assert.equal(invoke("10.0.0.1").statusCode, 429);
+
+  // Llenar maxKeys=3 con B, C y D provoca evicción FIFO de 10.0.0.1.
+  assert.equal(invoke("10.0.0.2").nextCalled, true);
+  assert.equal(invoke("10.0.0.3").nextCalled, true);
+  assert.equal(invoke("10.0.0.4").nextCalled, true);
+  assert.equal(invoke("10.0.0.1").nextCalled, true);
+});
+
+test("rateLimit en /sync bloquea fuerza bruta tras 10 fallos 401 sin bloquear tráfico válido", async () => {
+  const create = await api("POST", "/api/leagues", { name: "Brute Sync", pin: "6543" });
+  const id = create.body.league.id;
+
+  for (let i = 0; i < 10; i++) {
+    const fail = await api(
+      "POST",
+      "/api/leagues/sync",
+      { id, pin: "0000", matches: [] },
+      { "X-Forwarded-For": "203.0.113.10" }
+    );
+    assert.equal(fail.status, 401);
+  }
+
+  const blocked = await api(
+    "POST",
+    "/api/leagues/sync",
+    { id, pin: "6543", matches: [] },
+    { "X-Forwarded-For": "203.0.113.10" }
+  );
+  assert.equal(blocked.status, 429);
+  assert.ok(blocked.headers.get("retry-after"));
+
+  // Otra IP con el PIN válido sigue sincronizando con 200.
+  const valid = await api(
+    "POST",
+    "/api/leagues/sync",
+    { id, pin: "6543", matches: [] },
+    { "X-Forwarded-For": "203.0.113.11" }
+  );
+  assert.equal(valid.status, 200);
+});
+
+test("POST /api/leagues aplica límite anti-DoS tras 30 solicitudes", async () => {
+  for (let i = 0; i < 30; i++) {
+    const res = await api(
+      "POST",
+      "/api/leagues",
+      { name: `DoS Test ${i}`, pin: "4455" },
+      { "X-Forwarded-For": "203.0.113.20" }
+    );
+    assert.equal(res.status, 201);
+  }
+
+  const blocked = await api(
+    "POST",
+    "/api/leagues",
+    { name: "DoS Blocked", pin: "4455" },
+    { "X-Forwarded-For": "203.0.113.20" }
+  );
+  assert.equal(blocked.status, 429);
+});
+
+test("integridad Mongo-first: fallo en updateOne no muta el estado en RAM", async () => {
+  const create = await api("POST", "/api/leagues", {
+    name: "Mongo First",
+    pin: "7788",
+    initialParticipants: ["Ana", "Beto"],
+  });
+  const id = create.body.league.id;
+
+  const prevConnected = mongo.connected;
+  const prevGetCollection = mongo.getCollection;
+
+  try {
+    mongo.connected = true;
+    mongo.getCollection = () => ({
+      async updateOne() {
+        throw new Error("Atlas timeout");
+      },
+    });
+
+    await assert.rejects(
+      () =>
+        store.recordMatch(id, {
+          team1Members: ["Ana"],
+          team2Members: ["Beto"],
+          score1: 100,
+          score2: 50,
+          winnerTeam: 1,
+        }),
+      /Atlas timeout/
+    );
+
+    await assert.rejects(
+      () =>
+        store.syncLeague({
+          id,
+          name: "Nombre No Persistido",
+          pin: "7788",
+          participants: ["Carlos"],
+          matches: [
+            {
+              id: "m_fail_1",
+              team1Members: ["Ana"],
+              team2Members: ["Beto"],
+              score1: 100,
+              score2: 50,
+              winnerTeam: 1,
+            },
+          ],
+        }),
+      /Atlas timeout/
+    );
+
+    const unchanged = store.getLeagueById(id);
+    assert.equal(unchanged.name, "Mongo First");
+    assert.equal(unchanged.matches.length, 0);
+    assert.deepEqual(unchanged.participants, ["Ana", "Beto"]);
+  } finally {
+    mongo.connected = prevConnected;
+    mongo.getCollection = prevGetCollection;
+  }
+});
+
+test("seguridad de PIN, deduplicación sin tildes y DELETE con query deprecado", async () => {
+  for (let i = 0; i < 200; i++) {
+    const p = generateRandomPin();
+    assert.match(p, /^\d{4}$/);
+    assert.notEqual(p, "1234");
+  }
+  assert.equal(pinMatches("4321", "4321"), true);
+  assert.equal(pinMatches("4321", "4322"), false);
+  assert.equal(pinMatches("4321", 4321), false);
+
+  const created = await api("POST", "/api/leagues", {
+    name: "Participantes Sin Tilde",
+    pin: "8181",
+  });
+  const id = created.body.league.id;
+
+  await api("POST", `/api/leagues/${id}/participants`, { name: "José", pin: "8181" });
+  const dup = await api("POST", `/api/leagues/${id}/participants`, { name: "Jose", pin: "8181" });
+  assert.equal(dup.status, 200);
+  assert.equal(dup.body.participants.length, 1);
+
+  const legacyDelete = await api("DELETE", `/api/leagues/${id}?pin=8181`);
+  assert.equal(legacyDelete.status, 200);
+  assert.equal(legacyDelete.body.success, true);
 });

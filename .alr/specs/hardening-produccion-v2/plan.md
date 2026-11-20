@@ -36,7 +36,7 @@ Todo cambio en este plan debe respetar las siguientes reglas para **no corromper
 | Prioridad | Fase | Objetivo | Riesgo sobre prod/data | Requiere migración BD |
 | :--- | :--- | :--- | :--- | :--- |
 | **P0-A** | **Fase 0** ✅ Completada | Contención de seguridad e higiene (CVEs, Docker, secretos, graceful shutdown) | Nulo | No |
-| **P0-B** | **Fase 1** | Endurecimiento del backend e integridad Mongo-first (100% retrocompatible) | Muy bajo | No |
+| **P0-B** | **Fase 1** ✅ Completada | Endurecimiento del backend e integridad Mongo-first (100% retrocompatible) | Muy bajo | No |
 | **P0-C** | **Fase 2** | Corrección de bugs silenciosos en Flutter (pérdida de partidas, Casual, GlobalRanking, race conditions) | Bajo | No |
 | **P1** | **Fase 3** | Sincronización de participantes, eficiencia de red, pulido móvil/web y CI sin falsos verdes | Bajo | No |
 | **P1/P2** | **Fase 4** | Migración de PINs a `scrypt` (`pinHash`) en MongoDB Atlas (Expand → Dual-Read → Migrate) | Medio (controlado con backup) | **Sí (aprobación explícita)** |
@@ -68,7 +68,7 @@ Todo cambio en este plan debe respetar las siguientes reglas para **no corromper
 
 ---
 
-## FASE 1 (P0-B) — Endurecimiento del Backend e Integridad Mongo-First (Retrocompatible)
+## FASE 1 (P0-B) — Endurecimiento del Backend e Integridad Mongo-First (Retrocompatible) ✅ Completada
 
 **Por qué segundo:** Cierra el bypass de fuerza bruta de PIN (60× más rápido vía `/sync`), elimina crashes 500 por inputs hostiles, impide que fallos de MongoDB corrompan la RAM del servidor y bloquea el DoS por creación masiva de ligas — **manteniendo el 100% del contrato esperado por los APKs actuales**.
 
