@@ -11,6 +11,7 @@ const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
+const { spawnSync } = require("node:child_process");
 
 // Aislar el almacenamiento ANTES de cargar la app.
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "domino-test-"));
@@ -24,6 +25,7 @@ const {
   generateTeamKey,
 } = require("../src/utils/nameParser");
 const rankingsUtil = require("../src/utils/rankings");
+const { createShutdownHandler } = require("../src/utils/shutdown");
 
 let server;
 let baseUrl;
@@ -456,4 +458,154 @@ test("los rankings mensuales agrupan por mes en UTC", async () => {
   const oct = await api("GET", "/api/rankings/global/players?year=2026&month=10");
   const betoOct = oct.body.players.find((p) => p.key === "beto");
   assert.equal(betoOct.wins, 1);
+});
+
+// ---------------------------------------------------------------------------
+// Fase 0: Graceful shutdown y seed-league sin credenciales hardcodeadas
+// ---------------------------------------------------------------------------
+
+test("shutdown: cierra servidor HTTP, cierra BD y sale con código 0", async () => {
+  let closeCalls = 0;
+  let closedDb = false;
+  const exits = [];
+  let resolveExit;
+  const exited = new Promise((resolve) => {
+    resolveExit = resolve;
+  });
+
+  const shutdown = createShutdownHandler({
+    server: {
+      close(cb) {
+        closeCalls += 1;
+        cb();
+      },
+    },
+    closeDb: async () => {
+      closedDb = true;
+    },
+    exit: (code) => {
+      exits.push(code);
+      resolveExit();
+    },
+    logger: { log() {}, error() {} },
+  });
+
+  shutdown("SIGTERM");
+  await exited;
+
+  assert.equal(closeCalls, 1);
+  assert.equal(closedDb, true);
+  assert.deepEqual(exits, [0]);
+});
+
+test("shutdown: ignora señales duplicadas mientras ya está cerrando", async () => {
+  let closeCalls = 0;
+  let closeDbCalls = 0;
+  const exits = [];
+  let pendingCb;
+  let resolveExit;
+  const exited = new Promise((resolve) => {
+    resolveExit = resolve;
+  });
+
+  const shutdown = createShutdownHandler({
+    server: {
+      close(cb) {
+        closeCalls += 1;
+        pendingCb = cb;
+      },
+    },
+    closeDb: async () => {
+      closeDbCalls += 1;
+    },
+    exit: (code) => {
+      exits.push(code);
+      resolveExit();
+    },
+    logger: { log() {}, error() {} },
+  });
+
+  shutdown("SIGTERM");
+  shutdown("SIGINT");
+  assert.equal(closeCalls, 1);
+
+  pendingCb();
+  await exited;
+
+  assert.equal(closeDbCalls, 1);
+  assert.deepEqual(exits, [0]);
+});
+
+test("shutdown: sale con código 1 si closeDb falla", async () => {
+  const exits = [];
+  let resolveExit;
+  const exited = new Promise((resolve) => {
+    resolveExit = resolve;
+  });
+
+  const shutdown = createShutdownHandler({
+    server: {
+      close(cb) {
+        cb();
+      },
+    },
+    closeDb: async () => {
+      throw new Error("fallo simulado al cerrar Mongo");
+    },
+    exit: (code) => {
+      exits.push(code);
+      resolveExit();
+    },
+    logger: { log() {}, error() {} },
+  });
+
+  shutdown("SIGTERM");
+  await exited;
+
+  assert.deepEqual(exits, [1]);
+});
+
+test("shutdown: fuerza salida con código 1 si excede timeoutMs", async () => {
+  const exits = [];
+  let resolveExit;
+  const exited = new Promise((resolve) => {
+    resolveExit = resolve;
+  });
+
+  const shutdown = createShutdownHandler({
+    server: {
+      close() {
+        // Nunca invoca callback para forzar timeout.
+      },
+    },
+    closeDb: async () => {},
+    exit: (code) => {
+      exits.push(code);
+      resolveExit();
+    },
+    timeoutMs: 30,
+    logger: { log() {}, error() {} },
+  });
+
+  shutdown("SIGTERM");
+  await exited;
+
+  assert.deepEqual(exits, [1]);
+});
+
+test("seed-league: falla sin variables de entorno requeridas (sin credenciales hardcodeadas)", () => {
+  const seedScriptPath = path.resolve(__dirname, "../scripts/seed-league.js");
+  const source = fs.readFileSync(seedScriptPath, "utf-8");
+  assert.doesNotMatch(source, /EL MUNDO DE JULITO/);
+  assert.doesNotMatch(source, /9876/);
+
+  const result = spawnSync(process.execPath, [seedScriptPath], {
+    cwd: DATA_DIR,
+    env: {
+      PATH: process.env.PATH,
+      SYSTEMROOT: process.env.SYSTEMROOT,
+    },
+    encoding: "utf-8",
+  });
+  assert.notEqual(result.status, 0);
 });

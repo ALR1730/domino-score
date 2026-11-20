@@ -5,6 +5,7 @@ const mongo = require("./db/mongo");
 const store = require("./models/store");
 const leaguesRouter = require("./routes/leagues");
 const rankingsRouter = require("./routes/rankings");
+const { createShutdownHandler } = require("./utils/shutdown");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -105,17 +106,27 @@ async function startServer() {
     }
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Dominó Score Backend escuchando en http://0.0.0.0:${PORT}`);
     console.log(`📋 Healthcheck: http://localhost:${PORT}/health`);
     console.log(`🏆 Ligas API: http://localhost:${PORT}/api/leagues`);
   });
+
+  const shutdown = createShutdownHandler({
+    server,
+    closeDb: () => mongo.close(),
+  });
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
+  process.once("SIGINT", () => shutdown("SIGINT"));
+
+  return server;
 }
 
 // Iniciar servidor solo si no es importado en tests
 if (require.main === module) {
   startServer().catch((err) => {
     console.error("Error al iniciar el servidor:", err);
+    process.exit(1);
   });
 }
 
