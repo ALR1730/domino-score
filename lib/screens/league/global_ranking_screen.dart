@@ -81,14 +81,20 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
   }
 
   Future<ServerRankingResult?> _fetchRankingPeriod({int? year, int? month}) {
+    final tzOffsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
     if (widget.leagueId != null) {
       return ApiClient().fetchLeagueRankings(
         widget.leagueId!,
         year: year,
         month: month,
+        tzOffsetMinutes: tzOffsetMinutes,
       );
     }
-    return ApiClient().fetchGlobalRankings(year: year, month: month);
+    return ApiClient().fetchGlobalRankings(
+      year: year,
+      month: month,
+      tzOffsetMinutes: tzOffsetMinutes,
+    );
   }
 
   Future<void> _loadFromServer({bool pickDefaultMonth = false}) async {

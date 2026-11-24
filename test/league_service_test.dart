@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:domino_score/models/league.dart';
+import 'package:domino_score/services/api_client.dart';
 import 'package:domino_score/services/league_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -498,6 +499,151 @@ void main() {
         isTrue,
         reason: 'la partida encolada debe sincronizarse al liberarse el lock',
       );
+    });
+  });
+
+  group('LeagueService y ApiClient — Fase 3', () {
+    test('ApiClient reutiliza una única instancia http.Client por zona',
+        () async {
+      var factoryCalls = 0;
+      await http.runWithClient(() async {
+        final ok1 = await ApiClient().isServerAvailable();
+        final ok2 = await ApiClient().isServerAvailable();
+        expect(ok1, isTrue);
+        expect(ok2, isTrue);
+      }, () {
+        factoryCalls += 1;
+        return MockClient((_) async => _json({'status': 'ok'}));
+      });
+
+      expect(factoryCalls, 1);
+    });
+
+    test('addParticipantToLeague envía POST con PIN y tolera fallo de red',
+        () async {
+      SharedPreferences.setMockInitialValues({
+        _leaguesKey: _seedLeague(id: 'LIG-P1', name: 'Liga P', pin: '4321'),
+        _activeKey: 'LIG-P1',
+      });
+      await service.resetForTesting();
+
+      final requests = <http.Request>[];
+      await runWithFakeServer((req) async {
+        requests.add(req);
+        return _json({
+          'success': true,
+          'participants': ['Ana'],
+        });
+      }, () async {
+        await service.addParticipantToLeague('LIG-P1', 'Ana');
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      });
+
+      expect(requests.length, 1);
+      expect(requests.first.method, 'POST');
+      expect(requests.first.url.path, '/api/leagues/LIG-P1/participants');
+      expect(
+        jsonDecode(requests.first.body),
+        {'name': 'Ana', 'pin': '4321'},
+      );
+      expect(service.getLeague('LIG-P1')!.participants, contains('Ana'));
+
+      // Tolerancia offline: no lanza excepción y conserva el participante local.
+      await runWithFakeServer(
+        (req) async => throw const SocketExceptionStub(),
+        () async {
+          await service.addParticipantToLeague('LIG-P1', 'Beto');
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        },
+      );
+      expect(service.getLeague('LIG-P1')!.participants,
+          containsAll(['Ana', 'Beto']));
+    });
+
+    test(
+        'removeParticipantFromActiveLeague envía DELETE codificado con PIN y tolera offline',
+        () async {
+      final seeded = jsonDecode(
+        _seedLeague(id: 'LIG-P2', name: 'Liga Del', pin: '7890'),
+      ) as List<dynamic>;
+      (seeded.first as Map<String, dynamic>)['participants'] = [
+        '50% Juan',
+        'Pedro',
+      ];
+      SharedPreferences.setMockInitialValues({
+        _leaguesKey: jsonEncode(seeded),
+        _activeKey: 'LIG-P2',
+      });
+      await service.resetForTesting();
+
+      final requests = <http.Request>[];
+      await runWithFakeServer((req) async {
+        requests.add(req);
+        return _json({
+          'success': true,
+          'participants': ['Pedro'],
+        });
+      }, () async {
+        await service.removeParticipantFromActiveLeague('50% Juan');
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      });
+
+      expect(requests.length, 1);
+      expect(requests.first.method, 'DELETE');
+      expect(
+        requests.first.url.path,
+        '/api/leagues/LIG-P2/participants/50%25%20Juan',
+      );
+      expect(jsonDecode(requests.first.body), {'pin': '7890'});
+      expect(service.getLeague('LIG-P2')!.participants, ['Pedro']);
+
+      // Tolerancia offline al remover otro participante.
+      await runWithFakeServer(
+        (req) async => throw const SocketExceptionStub(),
+        () async {
+          await service.removeParticipantFromLeague('LIG-P2', 'Pedro');
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        },
+      );
+      expect(service.getLeague('LIG-P2')!.participants, isEmpty);
+    });
+
+    test(
+        'syncActiveLeagueWithServer fusiona participantes y nombre sin pisar locales ni PIN',
+        () async {
+      final seeded = jsonDecode(
+        _seedLeague(id: 'LIG-M1', name: 'Nombre Viejo', pin: '5544'),
+      ) as List<dynamic>;
+      (seeded.first as Map<String, dynamic>)['participants'] = [
+        'José',
+        'Solo Local',
+      ];
+      SharedPreferences.setMockInitialValues({
+        _leaguesKey: jsonEncode(seeded),
+        _activeKey: 'LIG-M1',
+      });
+      await service.resetForTesting();
+
+      await runWithFakeServer(
+        (req) async => _json({
+          'success': true,
+          'league': {
+            'id': 'LIG-M1',
+            'name': 'Nombre Actualizado',
+            'createdAt': DateTime(2026, 1, 1).toIso8601String(),
+            'participants': ['Jose', 'Desde Servidor'],
+            'teams': <String, dynamic>{},
+            'players': <String, dynamic>{},
+            'matches': <dynamic>[],
+          },
+        }),
+        () => service.syncActiveLeagueWithServer(),
+      );
+
+      final updated = service.getLeague('LIG-M1')!;
+      expect(updated.name, 'Nombre Actualizado');
+      expect(updated.pin, '5544');
+      expect(updated.participants, ['José', 'Solo Local', 'Desde Servidor']);
     });
   });
 }

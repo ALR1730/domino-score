@@ -38,8 +38,8 @@ Todo cambio en este plan debe respetar las siguientes reglas para **no corromper
 | **P0-A** | **Fase 0** ✅ Completada | Contención de seguridad e higiene (CVEs, Docker, secretos, graceful shutdown) | Nulo | No |
 | **P0-B** | **Fase 1** ✅ Completada | Endurecimiento del backend e integridad Mongo-first (100% retrocompatible) | Muy bajo | No |
 | **P0-C** | **Fase 2** ✅ Completada | Corrección de bugs silenciosos en Flutter (pérdida de partidas, Casual, GlobalRanking, race conditions) | Bajo | No |
-| **P1** | **Fase 3** | Sincronización de participantes, eficiencia de red, pulido móvil/web y CI sin falsos verdes | Bajo | No |
-| **P1/P2** | **Fase 4** ✅ Expand + Dual-Read listos (migración BD pendiente de `--apply`) | Migración de PINs a `scrypt` (`pinHash`) en MongoDB Atlas (Expand → Dual-Read → Migrate) | Medio (controlado con backup) | **Sí (aprobación explícita)** |
+| **P1** | **Fase 3** ✅ Completada | Sincronización de participantes, eficiencia de red, pulido móvil/web y CI sin falsos verdes | Bajo | No |
+| **P1/P2** | **Fase 4** | Migración de PINs a `scrypt` (`pinHash`) en MongoDB Atlas (Expand → Dual-Read → Migrate) | Medio (controlado con backup) | **Sí (aprobación explícita)** |
 | **P2** | **Fase 5** | Refactorización arquitectónica gradual (BETA, dividir pantallas, repositorios Mongo directos) | Medio | No (índices aditivos) |
 
 ---
@@ -164,7 +164,7 @@ Todo cambio en este plan debe respetar las siguientes reglas para **no corromper
 
 ---
 
-## FASE 3 (P1) — Sincronización Completa, Eficiencia de Red, Pulido y CI Confiable
+## FASE 3 (P1) — Sincronización Completa, Eficiencia de Red, Pulido y CI Confiable ✅ Completada
 
 **Por qué cuarto:** Cierra la desincronización de participantes entre dispositivos, elimina el consumo innecesario de batería/ancho de banda del polling cada 12s, corrige detalles visibles de producto y asegura que el CI jamás vuelva a dar falsos verdes.
 

@@ -637,7 +637,7 @@ class _LeagueManagerScreenState extends State<LeagueManagerScreen>
                       letterSpacing: 1),
                 ),
                 const Text(
-                  'Servidor: Render',
+                  'Servidor en la nube',
                   style: TextStyle(
                       fontSize: 10,
                       color: AppColors.emerald400,

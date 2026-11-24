@@ -14,10 +14,12 @@ router.get("/global/teams", (req, res) => {
     return res.status(q.status).json({ success: false, error: q.error });
   }
 
-  const filter =
-    q.data.year !== null ? { year: q.data.year, month: q.data.month } : {};
+  const filter = {
+    tzOffsetMinutes: q.data.tzOffsetMinutes,
+    ...(q.data.year !== null ? { year: q.data.year, month: q.data.month } : {}),
+  };
   const teams = store.getGlobalTeamsRanked(filter);
-  const availableMonths = store.getAvailableMonths();
+  const availableMonths = store.getAvailableMonths(null, q.data.tzOffsetMinutes);
   res.json({
     success: true,
     teams,
@@ -34,10 +36,12 @@ router.get("/global/players", (req, res) => {
     return res.status(q.status).json({ success: false, error: q.error });
   }
 
-  const filter =
-    q.data.year !== null ? { year: q.data.year, month: q.data.month } : {};
+  const filter = {
+    tzOffsetMinutes: q.data.tzOffsetMinutes,
+    ...(q.data.year !== null ? { year: q.data.year, month: q.data.month } : {}),
+  };
   const players = store.getGlobalPlayersRanked(filter);
-  const availableMonths = store.getAvailableMonths();
+  const availableMonths = store.getAvailableMonths(null, q.data.tzOffsetMinutes);
   res.json({
     success: true,
     players,
@@ -64,9 +68,14 @@ router.get("/league/:id", (req, res) => {
     return res.status(404).json({ success: false, error: "Liga no encontrada." });
   }
 
-  const filter =
-    q.data.year !== null ? { year: q.data.year, month: q.data.month } : {};
-  const availableMonths = store.getAvailableMonths(idCheck.data);
+  const filter = {
+    tzOffsetMinutes: q.data.tzOffsetMinutes,
+    ...(q.data.year !== null ? { year: q.data.year, month: q.data.month } : {}),
+  };
+  const availableMonths = store.getAvailableMonths(
+    idCheck.data,
+    q.data.tzOffsetMinutes
+  );
   const { teams, players } = rankLeague(league, filter);
 
   res.json({

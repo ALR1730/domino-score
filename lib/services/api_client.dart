@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -30,9 +31,31 @@ class ApiClient {
   // URL fija para backend en la nube
   final String baseUrl = defaultBaseUrl;
 
-  String _monthQueryString(int? year, int? month) {
-    if (year == null || month == null) return '';
-    return '?year=$year&month=$month';
+  http.Client? _client;
+  Zone? _clientZone;
+
+  http.Client get _http {
+    final current = Zone.current;
+    if (_client != null && identical(_clientZone, current)) {
+      return _client!;
+    }
+    final created = http.Client();
+    _client = created;
+    _clientZone = current;
+    return created;
+  }
+
+  String _monthQueryString(int? year, int? month, {int? tzOffsetMinutes}) {
+    final params = <String>[];
+    if (year != null && month != null) {
+      params.add('year=$year');
+      params.add('month=$month');
+    }
+    if (tzOffsetMinutes != null) {
+      params.add('tzOffsetMinutes=$tzOffsetMinutes');
+    }
+    if (params.isEmpty) return '';
+    return '?${params.join('&')}';
   }
 
   List<DateTime> _parseAvailableMonths(dynamic raw) {
@@ -54,7 +77,7 @@ class ApiClient {
   Future<bool> isServerAvailable() async {
     try {
       final res =
-          await http.get(Uri.parse('$baseUrl/health')).timeout(requestTimeout);
+          await _http.get(Uri.parse('$baseUrl/health')).timeout(requestTimeout);
       return res.statusCode == 200;
     } catch (_) {
       return false;
@@ -68,7 +91,7 @@ class ApiClient {
     required List<String> initialParticipants,
   }) async {
     try {
-      final res = await http
+      final res = await _http
           .post(
             Uri.parse('$baseUrl/api/leagues'),
             headers: {'Content-Type': 'application/json'},
@@ -92,7 +115,7 @@ class ApiClient {
 
   Future<League?> syncLeague(League league) async {
     try {
-      final res = await http
+      final res = await _http
           .post(
             Uri.parse('$baseUrl/api/leagues/sync'),
             headers: {'Content-Type': 'application/json'},
@@ -116,7 +139,7 @@ class ApiClient {
     required String pin,
   }) async {
     try {
-      final res = await http
+      final res = await _http
           .post(
             Uri.parse('$baseUrl/api/leagues/join'),
             headers: {'Content-Type': 'application/json'},
@@ -143,7 +166,7 @@ class ApiClient {
 
   Future<League?> fetchLeague(String id) async {
     try {
-      final res = await http
+      final res = await _http
           .get(Uri.parse('$baseUrl/api/leagues/$id'))
           .timeout(requestTimeout);
       if (res.statusCode == 200) {
@@ -152,6 +175,69 @@ class ApiClient {
       }
     } catch (e) {
       debugPrint('ApiClient.fetchLeague error: $e');
+    }
+    return null;
+  }
+
+  Future<List<String>?> addParticipant({
+    required String leagueId,
+    required String name,
+    required String pin,
+  }) async {
+    try {
+      final res = await _http
+          .post(
+            Uri.parse('$baseUrl/api/leagues/$leagueId/participants'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'name': name.trim(),
+              'pin': pin.trim(),
+            }),
+          )
+          .timeout(requestTimeout);
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic> &&
+            data['success'] == true &&
+            data['participants'] is List) {
+          return (data['participants'] as List<dynamic>)
+              .map((e) => e.toString())
+              .toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('ApiClient.addParticipant error: $e');
+    }
+    return null;
+  }
+
+  Future<List<String>?> removeParticipant({
+    required String leagueId,
+    required String name,
+    required String pin,
+  }) async {
+    try {
+      final encodedName = Uri.encodeComponent(name.trim());
+      final res = await _http
+          .delete(
+            Uri.parse(
+                '$baseUrl/api/leagues/$leagueId/participants/$encodedName'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'pin': pin.trim()}),
+          )
+          .timeout(requestTimeout);
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic> &&
+            data['success'] == true &&
+            data['participants'] is List) {
+          return (data['participants'] as List<dynamic>)
+              .map((e) => e.toString())
+              .toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('ApiClient.removeParticipant error: $e');
     }
     return null;
   }
@@ -167,7 +253,7 @@ class ApiClient {
       if (leagueName != null) payload['leagueName'] = leagueName;
       if (pin != null) payload['pin'] = pin;
 
-      final res = await http
+      final res = await _http
           .post(
             Uri.parse('$baseUrl/api/leagues/$leagueId/matches'),
             headers: {'Content-Type': 'application/json'},
@@ -184,7 +270,7 @@ class ApiClient {
   Future<Map<String, dynamic>?> _fetchRankingJson(String path) async {
     try {
       final res =
-          await http.get(Uri.parse('$baseUrl$path')).timeout(requestTimeout);
+          await _http.get(Uri.parse('$baseUrl$path')).timeout(requestTimeout);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data is Map<String, dynamic> && data['success'] == true) {
@@ -197,9 +283,13 @@ class ApiClient {
     return null;
   }
 
-  Future<List<TeamStats>?> fetchGlobalTeams({int? year, int? month}) async {
+  Future<List<TeamStats>?> fetchGlobalTeams({
+    int? year,
+    int? month,
+    int? tzOffsetMinutes,
+  }) async {
     final data = await _fetchRankingJson(
-      '/api/rankings/global/teams${_monthQueryString(year, month)}',
+      '/api/rankings/global/teams${_monthQueryString(year, month, tzOffsetMinutes: tzOffsetMinutes)}',
     );
     if (data == null || data['teams'] is! List) return null;
     return (data['teams'] as List<dynamic>)
@@ -207,9 +297,13 @@ class ApiClient {
         .toList();
   }
 
-  Future<List<PlayerStats>?> fetchGlobalPlayers({int? year, int? month}) async {
+  Future<List<PlayerStats>?> fetchGlobalPlayers({
+    int? year,
+    int? month,
+    int? tzOffsetMinutes,
+  }) async {
     final data = await _fetchRankingJson(
-      '/api/rankings/global/players${_monthQueryString(year, month)}',
+      '/api/rankings/global/players${_monthQueryString(year, month, tzOffsetMinutes: tzOffsetMinutes)}',
     );
     if (data == null || data['players'] is! List) return null;
     return (data['players'] as List<dynamic>)
@@ -217,9 +311,13 @@ class ApiClient {
         .toList();
   }
 
-  Future<ServerRankingResult?> fetchGlobalRankings(
-      {int? year, int? month}) async {
-    final query = _monthQueryString(year, month);
+  Future<ServerRankingResult?> fetchGlobalRankings({
+    int? year,
+    int? month,
+    int? tzOffsetMinutes,
+  }) async {
+    final query =
+        _monthQueryString(year, month, tzOffsetMinutes: tzOffsetMinutes);
     final responses = await Future.wait([
       _fetchRankingJson('/api/rankings/global/teams$query'),
       _fetchRankingJson('/api/rankings/global/players$query'),
@@ -247,9 +345,10 @@ class ApiClient {
     String leagueId, {
     int? year,
     int? month,
+    int? tzOffsetMinutes,
   }) async {
     final data = await _fetchRankingJson(
-      '/api/rankings/league/$leagueId${_monthQueryString(year, month)}',
+      '/api/rankings/league/$leagueId${_monthQueryString(year, month, tzOffsetMinutes: tzOffsetMinutes)}',
     );
     if (data == null) return null;
 
@@ -270,7 +369,7 @@ class ApiClient {
   /// Devuelve `null` en error de red/servidor para diferenciarlo de una lista vacía.
   Future<List<Map<String, dynamic>>?> fetchServerLeagues() async {
     try {
-      final res = await http
+      final res = await _http
           .get(Uri.parse('$baseUrl/api/leagues'))
           .timeout(requestTimeout);
       if (res.statusCode == 200) {
@@ -289,7 +388,7 @@ class ApiClient {
       {required String pin}) async {
     final cleanPin = pin.trim();
     try {
-      final res = await http
+      final res = await _http
           .delete(
             Uri.parse('$baseUrl/api/leagues/$id'),
             headers: {'Content-Type': 'application/json'},

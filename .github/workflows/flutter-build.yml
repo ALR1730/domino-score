@@ -60,6 +60,7 @@ jobs:
       - name: Instalar dependencias y pruebas
         run: |
           flutter pub get
+          dart format --output=none --set-exit-if-changed lib test
           flutter analyze
           flutter test
 
@@ -110,9 +111,15 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Leer versión desde pubspec.yaml
+        id: app_version
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Desplegar a GitHub Pages (Rama gh-pages)
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        continue-on-error: true
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -121,11 +128,10 @@ jobs:
 
       - name: Publicar Release en GitHub con APK
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0
-          name: "Dominó Score v1.0 (APK y Web)"
+          tag_name: ${{ steps.app_version.outputs.tag }}
+          name: "Dominó Score ${{ steps.app_version.outputs.tag }} (APK y Web)"
           body: |
             ### 🎲 Dominó Score - Descarga de APK Android
             - **Descarga directa:** Haz clic en `app-release.apk` abajo para descargar e instalar en tu teléfono.

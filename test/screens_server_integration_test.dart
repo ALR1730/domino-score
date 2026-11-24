@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:domino_score/screens/league/global_ranking_screen.dart';
+import 'package:domino_score/screens/league/league_home_screen.dart';
 import 'package:domino_score/screens/league/league_manager_screen.dart';
 import 'package:domino_score/services/league_service.dart';
 import 'package:flutter/material.dart';
@@ -51,7 +52,9 @@ void main() {
   testWidgets(
       'GlobalRankingScreen carga y muestra rankings reales del servidor aunque no haya ligas locales',
       (WidgetTester tester) async {
+    final requestedUrls = <Uri>[];
     final client = MockClient((request) async {
+      requestedUrls.add(request.url);
       if (request.url.path.endsWith('/api/rankings/global/teams')) {
         return _json({
           'success': true,
@@ -90,6 +93,80 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Ana & Luis'), findsOneWidget);
+      expect(requestedUrls, isNotEmpty);
+      expect(
+        requestedUrls
+            .every((uri) => uri.queryParameters.containsKey('tzOffsetMinutes')),
+        isTrue,
+      );
+    }, () => client);
+  });
+
+  testWidgets(
+      'LeagueHomeScreen no desborda con nombres largos en móvil ni muestra Render',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final seededLeague = [
+      {
+        'id': 'LIG-OVF1',
+        'name': 'Liga Con Nombre Bastante Largo En Cabecera',
+        'pin': '4321',
+        'createdAt': DateTime(2026, 3, 1).toIso8601String(),
+        'participants': [
+          'Participante Con Un Nombre Extremadamente Largo Para Probar Overflow',
+          'Otro Jugador De Nombre Largo',
+        ],
+        'teams': <String, dynamic>{},
+        'players': <String, dynamic>{},
+        'matches': [
+          {
+            'id': 'm-ovf-1',
+            'date': '2026-03-15T12:00:00.000Z',
+            'team1DisplayName': 'Alejandro Maximiliano & Bartolomeo Constancio',
+            'team2DisplayName': 'Esteban Sebastián & Francisco Javier De León',
+            'team1Members': ['Alejandro Maximiliano', 'Bartolomeo Constancio'],
+            'team2Members': ['Esteban Sebastián', 'Francisco Javier De León'],
+            'score1': 205,
+            'score2': 185,
+            'winnerTeam': 1,
+          },
+        ],
+      }
+    ];
+    SharedPreferences.setMockInitialValues({
+      'domino_leagues_registry_v1': jsonEncode(seededLeague),
+      'domino_active_league_id_v1': 'LIG-OVF1',
+    });
+    await LeagueService().resetForTesting();
+
+    final client = MockClient((request) async {
+      if (request.url.path == '/health') {
+        return _json({'status': 'ok'});
+      }
+      if (request.url.path == '/api/leagues/sync') {
+        return _json({'success': true, 'league': seededLeague.first});
+      }
+      return _json({'success': false}, status: 404);
+    });
+
+    await http.runWithClient(() async {
+      await tester.pumpWidget(const MaterialApp(home: LeagueHomeScreen()));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.textContaining('Participantes'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.textContaining('Partidas'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      expect(find.textContaining('Render'), findsNothing);
     }, () => client);
   });
 }

@@ -223,11 +223,42 @@ class LeagueService extends ChangeNotifier {
 
   Future<void> addParticipantToLeague(String leagueId, String name) async {
     await ensureLoaded();
+    final clean = name.trim();
+    if (clean.isEmpty) return;
     final league = _leagues[leagueId];
     if (league == null) return;
-    league.addParticipant(name);
+    league.addParticipant(clean);
     await _saveData();
     notifyListeners();
+
+    if (league.pin.trim().isNotEmpty) {
+      unawaited(_syncAddParticipantToServer(league, clean));
+    }
+  }
+
+  Future<void> _syncAddParticipantToServer(League league, String name) async {
+    try {
+      final serverParticipants = await ApiClient().addParticipant(
+        leagueId: league.id,
+        name: name,
+        pin: league.pin,
+      );
+      if (serverParticipants == null) {
+        _pendingSyncLeagueIds.add(league.id);
+        return;
+      }
+      final prevLength = league.participants.length;
+      for (final p in serverParticipants) {
+        league.addParticipant(p);
+      }
+      if (league.participants.length != prevLength) {
+        await _saveData();
+        notifyListeners();
+      }
+    } catch (e) {
+      _pendingSyncLeagueIds.add(league.id);
+      debugPrint('Error sincronizando participante agregado: $e');
+    }
   }
 
   Future<void> addParticipantToActiveLeague(String name) async {
@@ -237,13 +268,39 @@ class LeagueService extends ChangeNotifier {
     await addParticipantToLeague(id, name);
   }
 
-  Future<void> removeParticipantFromActiveLeague(String name) async {
+  Future<void> removeParticipantFromLeague(String leagueId, String name) async {
     await ensureLoaded();
-    final league = activeLeague;
+    final clean = name.trim();
+    if (clean.isEmpty) return;
+    final league = _leagues[leagueId];
     if (league == null) return;
-    league.removeParticipant(name);
+    league.removeParticipant(clean);
     await _saveData();
     notifyListeners();
+
+    if (league.pin.trim().isNotEmpty) {
+      unawaited(_syncRemoveParticipantToServer(league, clean));
+    }
+  }
+
+  Future<void> _syncRemoveParticipantToServer(
+      League league, String name) async {
+    try {
+      await ApiClient().removeParticipant(
+        leagueId: league.id,
+        name: name,
+        pin: league.pin,
+      );
+    } catch (e) {
+      debugPrint('Error sincronizando eliminación de participante: $e');
+    }
+  }
+
+  Future<void> removeParticipantFromActiveLeague(String name) async {
+    await ensureLoaded();
+    final id = _activeLeagueId;
+    if (id == null) return;
+    await removeParticipantFromLeague(id, name);
   }
 
   /// Registra [match] en la liga con id [leagueId] — capturada al inicio de
@@ -278,7 +335,7 @@ class LeagueService extends ChangeNotifier {
     }
   }
 
-  bool _mergeServerMatchesInto(League local, League server) {
+  bool _mergeServerLeagueInto(League local, League server) {
     final localMatchIds = local.matches.map((m) => m.id).toSet();
     var mergedAny = false;
     for (final serverMatch in server.matches) {
@@ -290,6 +347,21 @@ class LeagueService extends ChangeNotifier {
     if (mergedAny) {
       local.sortMatchesByDate();
     }
+
+    final prevParticipantsCount = local.participants.length;
+    for (final serverParticipant in server.participants) {
+      local.addParticipant(serverParticipant);
+    }
+    if (local.participants.length != prevParticipantsCount) {
+      mergedAny = true;
+    }
+
+    final serverName = server.name.trim();
+    if (serverName.isNotEmpty && serverName != local.name.trim()) {
+      local.name = serverName;
+      mergedAny = true;
+    }
+
     return mergedAny;
   }
 
@@ -336,7 +408,7 @@ class LeagueService extends ChangeNotifier {
       serverLeague ??= await ApiClient().fetchLeague(league.id);
 
       if (serverLeague != null) {
-        final mergedAny = _mergeServerMatchesInto(league, serverLeague);
+        final mergedAny = _mergeServerLeagueInto(league, serverLeague);
         _leagues[league.id] = league;
         if (mergedAny) {
           await _saveData();
@@ -376,7 +448,7 @@ class LeagueService extends ChangeNotifier {
           allSucceeded = false;
           continue;
         }
-        if (_mergeServerMatchesInto(league, serverLeague)) {
+        if (_mergeServerLeagueInto(league, serverLeague)) {
           mergedAny = true;
         }
         _leagues[league.id] = league;

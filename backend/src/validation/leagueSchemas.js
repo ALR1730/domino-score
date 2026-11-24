@@ -426,13 +426,57 @@ function validateSyncPayload(body) {
   };
 }
 
+const MIN_TZ_OFFSET_MIN = -840;
+const MAX_TZ_OFFSET_MIN = 840;
+
+function parseTzOffsetMinutes(rawOffset) {
+  if (rawOffset === undefined || rawOffset === null || rawOffset === "") {
+    return { ok: true, data: 0 };
+  }
+  if (typeof rawOffset !== "string") {
+    return {
+      ok: false,
+      error: `tzOffsetMinutes debe ser un entero entre ${MIN_TZ_OFFSET_MIN} y ${MAX_TZ_OFFSET_MIN}.`,
+      status: 400,
+    };
+  }
+  const trimmed = rawOffset.trim();
+  if (!trimmed) {
+    return { ok: true, data: 0 };
+  }
+  if (!/^-?\d{1,4}$/.test(trimmed)) {
+    return {
+      ok: false,
+      error: `tzOffsetMinutes debe ser un entero entre ${MIN_TZ_OFFSET_MIN} y ${MAX_TZ_OFFSET_MIN}.`,
+      status: 400,
+    };
+  }
+  const tz = Number(trimmed);
+  if (!Number.isInteger(tz) || tz < MIN_TZ_OFFSET_MIN || tz > MAX_TZ_OFFSET_MIN) {
+    return {
+      ok: false,
+      error: `tzOffsetMinutes debe ser un entero entre ${MIN_TZ_OFFSET_MIN} y ${MAX_TZ_OFFSET_MIN}.`,
+      status: 400,
+    };
+  }
+  return { ok: true, data: tz };
+}
+
 function validateMonthQuery(query) {
   const q = isPlainObject(query) ? query : {};
+  const tzCheck = parseTzOffsetMinutes(q.tzOffsetMinutes);
+  if (!tzCheck.ok) {
+    return tzCheck;
+  }
+
   const hasYear = q.year !== undefined && q.year !== "";
   const hasMonth = q.month !== undefined && q.month !== "";
 
   if (!hasYear && !hasMonth) {
-    return { ok: true, data: { year: null, month: null } };
+    return {
+      ok: true,
+      data: { year: null, month: null, tzOffsetMinutes: tzCheck.data },
+    };
   }
 
   if (hasYear !== hasMonth) {
@@ -463,7 +507,10 @@ function validateMonthQuery(query) {
     };
   }
 
-  return { ok: true, data: { year, month } };
+  return {
+    ok: true,
+    data: { year, month, tzOffsetMinutes: tzCheck.data },
+  };
 }
 
 module.exports = {

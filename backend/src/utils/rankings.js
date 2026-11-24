@@ -15,11 +15,13 @@ const {
 
 const CASUAL_LEAGUE_ID = "LIG-CASUAL"; // las partidas casuales nunca puntúan
 
-/** "2026-10" a partir de una fecha ISO; null si la fecha es inválida. */
-function monthKey(dateInput) {
+/** "2026-10" a partir de una fecha ISO desplazada por tzOffsetMinutes; null si es inválida. */
+function monthKey(dateInput, tzOffsetMinutes = 0) {
   const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
   if (Number.isNaN(d.getTime())) return null;
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  const offset = Number.isFinite(tzOffsetMinutes) ? tzOffsetMinutes : 0;
+  const shifted = new Date(d.getTime() + offset * 60000);
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 function monthKeyOf(year, month) {
@@ -30,11 +32,11 @@ function monthKeyOf(year, month) {
 }
 
 /** Meses con al menos una partida, en formato "YYYY-MM", orden desc. */
-function availableMonths(leagues) {
+function availableMonths(leagues, tzOffsetMinutes = 0) {
   const set = new Set();
   for (const league of leagues) {
     for (const m of league.matches || []) {
-      const key = monthKey(m.date);
+      const key = monthKey(m.date, tzOffsetMinutes);
       if (key) set.add(key);
     }
   }
@@ -149,7 +151,7 @@ function aggregatePlayersFromMatches(matches) {
 }
 
 /** Rankings globales (todas las ligas oficiales), opcionalmente de un mes. */
-function rankGlobal(leagues, { year, month } = {}) {
+function rankGlobal(leagues, { year, month, tzOffsetMinutes = 0 } = {}) {
   const targetMonth = monthKeyOf(year, month);
   const matches = [];
 
@@ -157,7 +159,9 @@ function rankGlobal(leagues, { year, month } = {}) {
     if (league.id === CASUAL_LEAGUE_ID) continue;
     for (const m of league.matches || []) {
       if (!m) continue;
-      if (targetMonth && monthKey(m.date) !== targetMonth) continue;
+      if (targetMonth && monthKey(m.date, tzOffsetMinutes) !== targetMonth) {
+        continue;
+      }
       matches.push(m);
     }
   }
@@ -169,12 +173,12 @@ function rankGlobal(leagues, { year, month } = {}) {
 }
 
 /** Rankings de una liga específica. Histórico = mapas agregados almacenados. */
-function rankLeague(league, { year, month } = {}) {
+function rankLeague(league, { year, month, tzOffsetMinutes = 0 } = {}) {
   const targetMonth = monthKeyOf(year, month);
 
   if (targetMonth) {
     const matches = (league.matches || []).filter(
-      (m) => m && monthKey(m.date) === targetMonth
+      (m) => m && monthKey(m.date, tzOffsetMinutes) === targetMonth
     );
     return {
       teams: aggregateTeamsFromMatches(matches),
