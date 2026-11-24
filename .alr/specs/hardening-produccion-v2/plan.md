@@ -194,7 +194,7 @@ Todo cambio en este plan debe respetar las siguientes reglas para **no corromper
 
 ---
 
-## FASE 4 (P1/P2) — Migración de PINs a Hash `scrypt` en MongoDB Atlas *(REQUIERE APROBACIÓN + BACKUP)*
+## FASE 4 (P1/P2) — Migración de PINs a Hash `scrypt` en MongoDB Atlas ✅ Expand + Dual-Read listos *(migración `--apply` pendiente de autorización tras deploy)*
 
 **Por qué quinto:** Elimina el último riesgo grave de base de datos (PINs en texto plano en Atlas) **sin romper una sola liga existente ni ningún APK ya instalado**.
 
