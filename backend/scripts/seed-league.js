@@ -1,6 +1,7 @@
 require("dotenv").config();
 const mongo = require("../src/db/mongo");
 const { removeDiacritics } = require("../src/utils/nameParser");
+const { hashPin } = require("../src/utils/pinCrypto");
 
 function buildInitialPlayers(participants) {
   const players = {};
@@ -64,11 +65,14 @@ async function main() {
   const participants = hasExistingParticipants ? existing.participants : seedParticipants;
   const players = hasExistingPlayers ? existing.players : buildInitialPlayers(participants);
 
+  const { pinHash, pinSalt } = await hashPin(leaguePin);
+
   const leagueDoc = {
     _id: existing ? existing._id : leagueId,
     id: existing ? existing.id : leagueId,
     name: leagueName,
-    pin: leaguePin,
+    pinHash,
+    pinSalt,
     createdAt: existing ? existing.createdAt : now,
     updatedAt: now,
     participants,
@@ -79,7 +83,7 @@ async function main() {
 
   await col.updateOne(
     { _id: leagueDoc._id },
-    { $set: leagueDoc },
+    { $set: leagueDoc, $unset: { pin: "" } },
     { upsert: true }
   );
 

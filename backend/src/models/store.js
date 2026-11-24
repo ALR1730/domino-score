@@ -3,7 +3,8 @@ const path = require("path");
 const crypto = require("crypto");
 const mongo = require("../db/mongo");
 const rankingsUtil = require("../utils/rankings");
-const { generateRandomPin, pinMatches } = require("../utils/pin");
+const { generateRandomPin } = require("../utils/pin");
+const { hashPin, verifyPin } = require("../utils/pinCrypto");
 const {
   extractMembers,
   generateTeamKey,
@@ -86,7 +87,11 @@ class Store {
 
   async _upsertInMongo(col, league) {
     const doc = { ...league, _id: league.id, updatedAt: new Date().toISOString() };
-    await col.updateOne({ _id: league.id }, { $set: doc }, { upsert: true });
+    const update = { $set: doc };
+    if (doc.pinHash && doc.pin === undefined) {
+      update.$unset = { pin: "" };
+    }
+    await col.updateOne({ _id: league.id }, update, { upsert: true });
   }
 
   /**
@@ -149,11 +154,13 @@ class Store {
     return `LIG-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
-  _buildNewLeague({ id, name, pin, initialParticipants = [] }) {
+  async _buildNewLeague({ id, name, pin, initialParticipants = [] }) {
     const leagueId = this._generateUniqueLeagueId(id);
     const suffix = leagueId.replace(/^LIG-/, "");
     const cleanName = typeof name === "string" ? name.trim() : "";
     const cleanPin = typeof pin === "string" ? pin.trim() : "";
+    const resolvedPin = cleanPin || generateRandomPin();
+    const { pinHash, pinSalt } = await hashPin(resolvedPin);
 
     const rawParticipants = Array.isArray(initialParticipants)
       ? initialParticipants
@@ -174,7 +181,8 @@ class Store {
     return {
       id: leagueId,
       name: cleanName || `Liga ${suffix}`,
-      pin: cleanPin || generateRandomPin(),
+      pinHash,
+      pinSalt,
       createdAt: new Date().toISOString(),
       participants: cleanParticipants,
       teams: {},
@@ -353,12 +361,44 @@ class Store {
     return null;
   }
 
+  async upgradeLegacyPin(leagueId, plainPin) {
+    const existing = this.getLeagueById(leagueId);
+    if (!existing || existing.pinHash) return existing;
+    const { pinHash, pinSalt } = await hashPin(plainPin);
+    const candidate = structuredClone(existing);
+    candidate.pinHash = pinHash;
+    candidate.pinSalt = pinSalt;
+    delete candidate.pin;
+    return await this._commitLeague(candidate);
+  }
+
+  async verifyLeaguePin(leagueOrId, candidatePin, { upgradeLegacy = true } = {}) {
+    const league =
+      typeof leagueOrId === "string"
+        ? this.getLeagueById(leagueOrId)
+        : leagueOrId;
+    if (!league) return false;
+    const { valid, needsUpgrade } = await verifyPin(league, candidatePin);
+    if (!valid) return false;
+    if (needsUpgrade && upgradeLegacy) {
+      try {
+        await this.upgradeLegacyPin(league.id, String(candidatePin).trim());
+      } catch (err) {
+        console.warn(
+          `⚠️ No se pudo actualizar PIN legado de ${league.id}:`,
+          err.message
+        );
+      }
+    }
+    return true;
+  }
+
   async deleteLeague(id, pin) {
     const league = this.getLeagueById(id);
     if (!league) {
       return { success: false, error: "Liga no encontrada." };
     }
-    if (!pinMatches(league.pin, pin)) {
+    if (!(await this.verifyLeaguePin(league, pin, { upgradeLegacy: false }))) {
       return { success: false, error: "PIN incorrecto para eliminar la liga." };
     }
 
@@ -377,7 +417,7 @@ class Store {
   }
 
   async createLeague({ id, name, pin, initialParticipants = [] }) {
-    const candidate = this._buildNewLeague({
+    const candidate = await this._buildNewLeague({
       id,
       name,
       pin,
@@ -401,7 +441,7 @@ class Store {
         err.statusCode = 401;
         throw err;
       }
-      candidate = this._buildNewLeague({
+      candidate = await this._buildNewLeague({
         id,
         name: leagueData.name || id,
         pin: cleanPin,
@@ -489,7 +529,7 @@ class Store {
         ...(matchData.team1Members || []),
         ...(matchData.team2Members || []),
       ];
-      candidate = this._buildNewLeague({
+      candidate = await this._buildNewLeague({
         id: leagueId,
         name: matchData.leagueName || `Liga ${leagueId}`,
         pin: cleanPin,

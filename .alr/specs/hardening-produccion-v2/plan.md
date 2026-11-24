@@ -39,7 +39,7 @@ Todo cambio en este plan debe respetar las siguientes reglas para **no corromper
 | **P0-B** | **Fase 1** ✅ Completada | Endurecimiento del backend e integridad Mongo-first (100% retrocompatible) | Muy bajo | No |
 | **P0-C** | **Fase 2** ✅ Completada | Corrección de bugs silenciosos en Flutter (pérdida de partidas, Casual, GlobalRanking, race conditions) | Bajo | No |
 | **P1** | **Fase 3** | Sincronización de participantes, eficiencia de red, pulido móvil/web y CI sin falsos verdes | Bajo | No |
-| **P1/P2** | **Fase 4** | Migración de PINs a `scrypt` (`pinHash`) en MongoDB Atlas (Expand → Dual-Read → Migrate) | Medio (controlado con backup) | **Sí (aprobación explícita)** |
+| **P1/P2** | **Fase 4** ✅ Expand + Dual-Read listos (migración BD pendiente de `--apply`) | Migración de PINs a `scrypt` (`pinHash`) en MongoDB Atlas (Expand → Dual-Read → Migrate) | Medio (controlado con backup) | **Sí (aprobación explícita)** |
 | **P2** | **Fase 5** | Refactorización arquitectónica gradual (BETA, dividir pantallas, repositorios Mongo directos) | Medio | No (índices aditivos) |
 
 ---
@@ -194,7 +194,7 @@ Todo cambio en este plan debe respetar las siguientes reglas para **no corromper
 
 ---
 
-## FASE 4 (P1/P2) — Migración de PINs a Hash `scrypt` en MongoDB Atlas *(REQUIERE APROBACIÓN + BACKUP)*
+## FASE 4 (P1/P2) — Migración de PINs a Hash `scrypt` en MongoDB Atlas ✅ Expand + Dual-Read listos *(migración `--apply` pendiente de autorización tras deploy)*
 
 **Por qué quinto:** Elimina el último riesgo grave de base de datos (PINs en texto plano en Atlas) **sin romper una sola liga existente ni ningún APK ya instalado**.
 
