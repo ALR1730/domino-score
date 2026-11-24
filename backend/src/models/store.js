@@ -510,13 +510,13 @@ class Store {
     return match;
   }
 
-  getAvailableMonths(leagueId = null) {
+  getAvailableMonths(leagueId = null, tzOffsetMinutes = 0) {
     const targetLeagues = leagueId
       ? this.leagues.has(leagueId)
         ? [this.leagues.get(leagueId)]
         : []
       : Array.from(this.leagues.values());
-    return rankingsUtil.availableMonths(targetLeagues);
+    return rankingsUtil.availableMonths(targetLeagues, tzOffsetMinutes);
   }
 
   getGlobalTeamsRanked(options = {}) {

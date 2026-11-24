@@ -465,7 +465,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           children: [
             CircularProgressIndicator(color: AppColors.emerald400),
             SizedBox(height: 12),
-            Text('Consultando clasificaciones del servidor Render...',
+            Text('Consultando clasificaciones del servidor...',
                 style: TextStyle(color: AppColors.slate400, fontSize: 12)),
           ],
         ),
@@ -604,7 +604,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           children: [
             CircularProgressIndicator(color: AppColors.emerald400),
             SizedBox(height: 12),
-            Text('Consultando jugadores del servidor Render...',
+            Text('Consultando jugadores del servidor...',
                 style: TextStyle(color: AppColors.slate400, fontSize: 12)),
           ],
         ),

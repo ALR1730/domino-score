@@ -885,3 +885,60 @@ test("seguridad de PIN, deduplicación sin tildes y DELETE con query deprecado",
   assert.equal(legacyDelete.status, 200);
   assert.equal(legacyDelete.body.success, true);
 });
+
+// ---------------------------------------------------------------------------
+// Fase 3: tzOffsetMinutes opcional y retrocompatible en rankings mensuales
+// ---------------------------------------------------------------------------
+
+test("rankings: monthKey aplica tzOffsetMinutes sin romper el default UTC (0)", () => {
+  assert.equal(rankingsUtil.monthKey("2026-10-01T01:00:00.000Z"), "2026-10");
+  assert.equal(rankingsUtil.monthKey("2026-10-01T01:00:00.000Z", 0), "2026-10");
+  assert.equal(rankingsUtil.monthKey("2026-10-01T01:00:00.000Z", -240), "2026-09");
+});
+
+test("rankings: endpoints soportan tzOffsetMinutes y rechazan valores inválidos con 400", async () => {
+  const create = await api("POST", "/api/leagues", {
+    name: "Liga TZ Offset",
+    pin: "3141",
+    initialParticipants: ["TzAlpha", "TzBeta"],
+  });
+  const id = create.body.league.id;
+
+  // 2026-10-01T01:00:00.000Z corresponde a 2026-09-30T21:00 en UTC-4 (-240 min).
+  await api("POST", `/api/leagues/${id}/matches`, {
+    pin: "3141",
+    date: "2026-10-01T01:00:00.000Z",
+    team1Members: ["TzAlpha"],
+    team2Members: ["TzBeta"],
+    score1: 200,
+    score2: 110,
+    winnerTeam: 1,
+  });
+
+  const globalSep = await api(
+    "GET",
+    "/api/rankings/global/teams?year=2026&month=9&tzOffsetMinutes=-240"
+  );
+  assert.equal(globalSep.status, 200);
+  assert.ok(globalSep.body.availableMonths.includes("2026-09"));
+  const alphaGlobal = globalSep.body.teams.find((t) => t.key === "tzalpha");
+  assert.ok(alphaGlobal);
+  assert.equal(alphaGlobal.wins, 1);
+
+  const leagueSep = await api(
+    "GET",
+    `/api/rankings/league/${id}?year=2026&month=9&tzOffsetMinutes=-240`
+  );
+  assert.equal(leagueSep.status, 200);
+  assert.ok(leagueSep.body.availableMonths.includes("2026-09"));
+  assert.equal(leagueSep.body.teams.find((t) => t.key === "tzalpha")?.wins, 1);
+
+  for (const badQuery of [
+    "?tzOffsetMinutes=9999",
+    "?tzOffsetMinutes=-900",
+    "?tzOffsetMinutes=abc",
+  ]) {
+    const badRes = await api("GET", `/api/rankings/global/teams${badQuery}`);
+    assert.equal(badRes.status, 400, `debe rechazar ${badQuery}`);
+  }
+});

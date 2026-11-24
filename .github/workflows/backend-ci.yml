@@ -38,6 +38,11 @@ jobs:
           cd backend
           npm ci
 
+      - name: Audit production dependencies
+        run: |
+          cd backend
+          npm audit --omit=dev --audit-level=high
+
       - name: Run automated test suite
         run: |
           cd backend
@@ -60,11 +65,11 @@ jobs:
           docker build -t domino-score-backend:latest ./backend
 
       - name: Trigger Render Deploy Hook (if secret configured)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
           if [ -n "$RENDER_DEPLOY_HOOK" ]; then
             echo "Triggering Render auto-deploy..."
-            curl -s -X POST "$RENDER_DEPLOY_HOOK"
+            curl -fsS -X POST "$RENDER_DEPLOY_HOOK"
           fi

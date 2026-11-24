@@ -17,44 +17,50 @@ class LeagueHomeScreen extends StatefulWidget {
 }
 
 class _LeagueHomeScreenState extends State<LeagueHomeScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  static const Duration _autoSyncInterval = Duration(seconds: 45);
+
   final LeagueService _service = LeagueService();
   late TabController _tabController;
   bool _isSyncing = false;
   Timer? _autoSyncTimer;
   bool _isServerOnline = true;
+  bool _isAppResumed = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tabController = TabController(length: 3, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _service.syncActiveLeagueWithServer();
-      _checkServerStatus();
+      unawaited(_checkServerStatus());
     });
     // Auto-sincronización y monitoreo periódico de conexión
-    _autoSyncTimer = Timer.periodic(const Duration(seconds: 12), (_) {
-      if (mounted && !_isSyncing) {
+    _autoSyncTimer = Timer.periodic(_autoSyncInterval, (_) {
+      if (mounted && _isAppResumed && !_isSyncing) {
         if (!_isServerOnline) {
-          _checkServerStatus();
+          unawaited(_checkServerStatus());
         } else {
-          _service.syncActiveLeagueWithServer();
+          unawaited(_service.syncActiveLeagueWithServer());
         }
       }
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _isAppResumed = state == AppLifecycleState.resumed;
+    if (_isAppResumed && mounted && !_isSyncing) {
+      unawaited(_checkServerStatus());
+    }
   }
 
   Future<void> _checkServerStatus() async {
     try {
       final available = await ApiClient().isServerAvailable();
       if (mounted) setState(() => _isServerOnline = available);
-      if (available) {
-        if (_service.allLeagues.isNotEmpty) {
-          await _service.syncAllLeaguesWithServer();
-        }
-        if (_service.activeLeague != null) {
-          await _service.syncActiveLeagueWithServer();
-        }
+      if (available && _service.allLeagues.isNotEmpty) {
+        await _service.syncAllLeaguesWithServer();
       }
     } catch (_) {
       if (mounted) setState(() => _isServerOnline = false);
@@ -66,7 +72,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
     setState(() => _isSyncing = true);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Sincronizando rankings con el servidor Render...'),
+        content: Text('Sincronizando rankings con el servidor...'),
         duration: Duration(milliseconds: 900),
       ),
     );
@@ -80,7 +86,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
         SnackBar(
           content: Text(ok
               ? '✅ Conectado y sincronizado con el servidor correctamente.'
-              : '⚠️ No se pudo conectar al servidor Render.'),
+              : '⚠️ No se pudo conectar al servidor.'),
           backgroundColor: ok ? AppColors.emerald600 : AppColors.amber600,
         ),
       );
@@ -89,6 +95,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _autoSyncTimer?.cancel();
     _tabController.dispose();
     super.dispose();
@@ -495,12 +502,17 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
       children: [
         // League info banner
         Container(
+          width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           color: AppColors.slate900.withValues(alpha: 0.6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 6,
             children: [
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(Icons.tag, size: 14, color: AppColors.slate400),
                   const SizedBox(width: 4),
@@ -514,6 +526,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                 ],
               ),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     padding:
@@ -525,6 +538,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                           color: AppColors.amber600.withValues(alpha: 0.5)),
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.key,
                             size: 12, color: AppColors.amber300),
@@ -554,6 +568,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                             color: Colors.redAccent.withValues(alpha: 0.6)),
                       ),
                       child: const Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.delete_outline,
                               size: 13, color: Colors.redAccent),
@@ -603,14 +618,19 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'RANKING DE PAREJAS / EQUIPOS',
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.emerald400,
-                    letterSpacing: 0.8),
+              const Expanded(
+                child: Text(
+                  'RANKING DE PAREJAS / EQUIPOS',
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.emerald400,
+                      letterSpacing: 0.8),
+                ),
               ),
+              const SizedBox(width: 8),
               InkWell(
                 onTap: _handleSync,
                 borderRadius: BorderRadius.circular(6),
@@ -852,13 +872,18 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '${participants.length} PARTICIPANTES REGISTRADOS',
-                style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.slate400),
+              Expanded(
+                child: Text(
+                  '${participants.length} PARTICIPANTES REGISTRADOS',
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.slate400),
+                ),
               ),
+              const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: () => _showAddParticipantDialog(league),
                 icon: const Icon(Icons.person_add, size: 14),
@@ -893,21 +918,29 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 14,
-                    backgroundColor: AppColors.slate800,
-                    child:
-                        Icon(Icons.person, size: 16, color: AppColors.slate300),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(p,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13)),
-                ],
+              Expanded(
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 14,
+                      backgroundColor: AppColors.slate800,
+                      child: Icon(Icons.person,
+                          size: 16, color: AppColors.slate300),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        p,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.close,
@@ -958,33 +991,55 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                     style: const TextStyle(
                         color: AppColors.slate500, fontSize: 11),
                   ),
-                  Text(
-                    m.winnerTeam == 1
-                        ? 'Ganó ${m.team1DisplayName}'
-                        : 'Ganó ${m.team2DisplayName}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: m.winnerTeam == 1
-                          ? AppColors.emerald400
-                          : AppColors.indigo400,
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      m.winnerTeam == 1
+                          ? 'Ganó ${m.team1DisplayName}'
+                          : 'Ganó ${m.team2DisplayName}',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: m.winnerTeam == 1
+                            ? AppColors.emerald400
+                            : AppColors.indigo400,
+                      ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  Text('${m.team1DisplayName}: ${m.score1} pts',
+                  Expanded(
+                    child: Text(
+                      '${m.team1DisplayName}: ${m.score1} pts',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      textAlign: TextAlign.start,
                       style: const TextStyle(
-                          color: AppColors.slate300, fontSize: 12)),
-                  const Text('vs',
-                      style:
-                          TextStyle(color: AppColors.slate600, fontSize: 11)),
-                  Text('${m.team2DisplayName}: ${m.score2} pts',
+                          color: AppColors.slate300, fontSize: 12),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6),
+                    child: Text('vs',
+                        style:
+                            TextStyle(color: AppColors.slate600, fontSize: 11)),
+                  ),
+                  Expanded(
+                    child: Text(
+                      '${m.team2DisplayName}: ${m.score2} pts',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      textAlign: TextAlign.end,
                       style: const TextStyle(
-                          color: AppColors.slate300, fontSize: 12)),
+                          color: AppColors.slate300, fontSize: 12),
+                    ),
+                  ),
                 ],
               ),
             ],
