@@ -1,10 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
 import '../../models/leaderboard_entry.dart';
 import '../../services/api_client.dart';
 import '../../services/league_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/league/month_filter_bar.dart';
+import '../../widgets/league/ranking_list_tile.dart';
+import '../../widgets/league/ranking_podium.dart';
 
 class GlobalRankingScreen extends StatefulWidget {
   final String? leagueId;
@@ -32,21 +36,6 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
   List<TeamStats> _serverTeams = const [];
   List<PlayerStats> _serverPlayers = const [];
   List<DateTime> _serverAvailableMonths = const [];
-
-  static const List<String> _monthNames = [
-    'Enero',
-    'Febrero',
-    'Marzo',
-    'Abril',
-    'Mayo',
-    'Junio',
-    'Julio',
-    'Agosto',
-    'Septiembre',
-    'Octubre',
-    'Noviembre',
-    'Diciembre'
-  ];
 
   @override
   void initState() {
@@ -152,9 +141,9 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
     super.dispose();
   }
 
-  String _formatMonthYear(DateTime dt) {
-    final name = _monthNames[dt.month - 1];
-    return '$name ${dt.year}';
+  void _selectMonth(DateTime? month) {
+    setState(() => _selectedMonth = month);
+    unawaited(_loadFromServer());
   }
 
   void _prevMonth() {
@@ -162,8 +151,7 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
     if (available.isEmpty) return;
 
     if (_selectedMonth == null) {
-      setState(() => _selectedMonth = available.first);
-      unawaited(_loadFromServer());
+      _selectMonth(available.first);
       return;
     }
 
@@ -172,147 +160,35 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
     );
 
     if (currentIndex >= 0 && currentIndex < available.length - 1) {
-      setState(() => _selectedMonth = available[currentIndex + 1]);
-      unawaited(_loadFromServer());
+      _selectMonth(available[currentIndex + 1]);
     }
   }
 
   void _nextMonth() {
     final available = _availableMonths();
-    if (available.isEmpty) return;
-
-    if (_selectedMonth == null) return;
+    if (available.isEmpty || _selectedMonth == null) return;
 
     final currentIndex = available.indexWhere(
       (d) => d.year == _selectedMonth!.year && d.month == _selectedMonth!.month,
     );
 
     if (currentIndex > 0) {
-      setState(() => _selectedMonth = available[currentIndex - 1]);
-      unawaited(_loadFromServer());
+      _selectMonth(available[currentIndex - 1]);
     } else if (currentIndex == 0) {
-      // Avanzar después del más reciente vuelve a Histórico
-      setState(() => _selectedMonth = null);
-      unawaited(_loadFromServer());
+      _selectMonth(null);
     }
   }
 
-  void _showMonthPickerSheet(BuildContext context, List<DateTime> available) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.slate900,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.calendar_month,
-                          color: AppColors.emerald400, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Seleccionar Período de Ranking',
-                        style: TextStyle(
-                          color: AppColors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(color: AppColors.slate800),
-                ListTile(
-                  leading: const Icon(Icons.all_inclusive,
-                      color: AppColors.amber400),
-                  title: const Text(
-                    'Histórico Total (Todas las partidas)',
-                    style: TextStyle(
-                        color: AppColors.white, fontWeight: FontWeight.w600),
-                  ),
-                  trailing: _selectedMonth == null
-                      ? const Icon(Icons.check_circle,
-                          color: AppColors.emerald400)
-                      : null,
-                  onTap: () {
-                    setState(() => _selectedMonth = null);
-                    unawaited(_loadFromServer());
-                    Navigator.pop(ctx);
-                  },
-                ),
-                if (available.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text(
-                      'No hay meses con partidas registradas aún.',
-                      style: TextStyle(color: AppColors.slate400, fontSize: 13),
-                    ),
-                  )
-                else
-                  Flexible(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: available.length,
-                      itemBuilder: (context, i) {
-                        final dt = available[i];
-                        final isSelected = _selectedMonth != null &&
-                            _selectedMonth!.year == dt.year &&
-                            _selectedMonth!.month == dt.month;
-
-                        return ListTile(
-                          leading: Icon(
-                            Icons.calendar_today_outlined,
-                            size: 18,
-                            color: isSelected
-                                ? AppColors.emerald400
-                                : AppColors.slate400,
-                          ),
-                          title: Text(
-                            _formatMonthYear(dt),
-                            style: TextStyle(
-                              color: isSelected
-                                  ? AppColors.emerald400
-                                  : AppColors.white,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                          trailing: isSelected
-                              ? const Icon(Icons.check_circle,
-                                  color: AppColors.emerald400)
-                              : null,
-                          onTap: () {
-                            setState(() => _selectedMonth = dt);
-                            unawaited(_loadFromServer());
-                            Navigator.pop(ctx);
-                          },
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+  String _currentPeriodText() => _selectedMonth != null
+      ? formatMonthYear(_selectedMonth!)
+      : 'el período seleccionado';
 
   @override
   Widget build(BuildContext context) {
     final title = widget.leagueName != null
         ? 'Ranking: ${widget.leagueName}'
         : 'Ranking General';
+    final available = _availableMonths();
 
     return Scaffold(
       backgroundColor: AppColors.slate950,
@@ -381,9 +257,18 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
           preferredSize: const Size.fromHeight(102),
           child: Column(
             children: [
-              // Selector de Mes Interactivo
-              _buildMonthFilterBar(),
-              // Pestañas Parejas / Individual
+              MonthFilterBar(
+                selectedMonth: _selectedMonth,
+                availableMonths: available,
+                onPrevMonth: _prevMonth,
+                onNextMonth: _nextMonth,
+                onOpenPicker: () => showMonthPickerSheet(
+                  context,
+                  selectedMonth: _selectedMonth,
+                  availableMonths: available,
+                  onSelectMonth: _selectMonth,
+                ),
+              ),
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
@@ -446,89 +331,6 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
     );
   }
 
-  Widget _buildMonthFilterBar() {
-    final available = _availableMonths();
-
-    final currentIndex = _selectedMonth == null
-        ? -1
-        : available.indexWhere(
-            (d) =>
-                d.year == _selectedMonth!.year &&
-                d.month == _selectedMonth!.month,
-          );
-
-    final canGoPrev = available.isNotEmpty &&
-        (_selectedMonth == null || currentIndex < available.length - 1);
-    final canGoNext = _selectedMonth != null;
-
-    final displayText = _selectedMonth != null
-        ? _formatMonthYear(_selectedMonth!)
-        : 'Histórico Total';
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 2),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.slate800.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.slate700.withValues(alpha: 0.6)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left, size: 20),
-            color: canGoPrev ? AppColors.white : AppColors.slate600,
-            onPressed: canGoPrev ? _prevMonth : null,
-            tooltip: 'Mes anterior',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          ),
-          Expanded(
-            child: InkWell(
-              onTap: () => _showMonthPickerSheet(context, available),
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      _selectedMonth != null
-                          ? Icons.calendar_month
-                          : Icons.history,
-                      size: 16,
-                      color: AppColors.emerald400,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      displayText,
-                      style: const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.arrow_drop_down,
-                        size: 18, color: AppColors.slate400),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.chevron_right, size: 20),
-            color: canGoNext ? AppColors.white : AppColors.slate600,
-            onPressed: canGoNext ? _nextMonth : null,
-            tooltip: 'Mes siguiente',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildTeamsTab() {
     if (_isLoadingServer) {
       return const Center(
@@ -550,19 +352,25 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
               ));
 
     if (teams.isEmpty) {
-      return _buildEmptyState(isTeams: true);
+      return RankingEmptyState(
+        isTeams: true,
+        periodText: _currentPeriodText(),
+        showResetButton: _selectedMonth != null,
+        onResetToAllTime: () => _selectMonth(null),
+      );
     }
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      // Podio (opcional) + spacing + filas del ranking
       itemCount: teams.length + 2,
       itemBuilder: (ctx, i) {
         if (i == 0) {
-          // Podio Top 3 si hay equipos
-          return teams.length >= 2
-              ? _buildTeamsPodium(teams.take(3).toList())
-              : const SizedBox.shrink();
+          return RankingPodium(
+            entries: teams
+                .take(3)
+                .map((t) => PodiumEntry(name: t.displayName, wins: t.wins))
+                .toList(),
+          );
         }
         if (i == 1) return const SizedBox(height: 12);
 
@@ -570,89 +378,29 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
         final rank = i - 1;
         final losses = t.matchesPlayed - t.wins;
 
-        return Container(
+        return RankingListTile(
           key: ValueKey('rank_team_${t.key}'),
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.slate900,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: rank == 1
-                  ? AppColors.amber500.withValues(alpha: 0.6)
-                  : rank == 2
-                      ? const Color(0xFF94A3B8).withValues(alpha: 0.4)
-                      : rank == 3
-                          ? const Color(0xFFB45309).withValues(alpha: 0.4)
-                          : AppColors.slate800,
-            ),
-          ),
-          child: Row(
+          rank: rank,
+          title: t.displayName,
+          subtitle: Wrap(
+            spacing: 8,
             children: [
-              _buildRankBadge(rank),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t.displayName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: AppColors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        Text(
-                          '${t.matchesPlayed} PJ (${t.wins}G - ${losses >= 0 ? losses : 0}P)',
-                          style: const TextStyle(
-                              fontSize: 11, color: AppColors.slate400),
-                        ),
-                        Text(
-                          '•  ${t.totalPoints} pts',
-                          style: const TextStyle(
-                              fontSize: 11, color: AppColors.emerald400),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              Text(
+                '${t.matchesPlayed} PJ (${t.wins}G - ${losses >= 0 ? losses : 0}P)',
+                style: const TextStyle(fontSize: 11, color: AppColors.slate400),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.emerald950,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: AppColors.emerald500.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      '${t.wins} Vic',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.emerald400,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${t.winRate.toStringAsFixed(0)}% efectividad',
-                    style: const TextStyle(
-                        fontSize: 10, color: AppColors.slate500),
-                  ),
-                ],
+              Text(
+                '•  ${t.totalPoints} pts',
+                style:
+                    const TextStyle(fontSize: 11, color: AppColors.emerald400),
               ),
             ],
           ),
+          wins: t.wins,
+          winRate: t.winRate,
+          badgeBgColor: AppColors.emerald950,
+          badgeBorderColor: AppColors.emerald500,
+          badgeTextColor: AppColors.emerald400,
         );
       },
     );
@@ -679,7 +427,12 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
               ));
 
     if (players.isEmpty) {
-      return _buildEmptyState(isTeams: false);
+      return RankingEmptyState(
+        isTeams: false,
+        periodText: _currentPeriodText(),
+        showResetButton: _selectedMonth != null,
+        onResetToAllTime: () => _selectMonth(null),
+      );
     }
 
     return ListView.builder(
@@ -687,9 +440,12 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
       itemCount: players.length + 2,
       itemBuilder: (ctx, i) {
         if (i == 0) {
-          return players.length >= 2
-              ? _buildPlayersPodium(players.take(3).toList())
-              : const SizedBox.shrink();
+          return RankingPodium(
+            entries: players
+                .take(3)
+                .map((p) => PodiumEntry(name: p.name, wins: p.wins))
+                .toList(),
+          );
         }
         if (i == 1) return const SizedBox(height: 12);
 
@@ -697,360 +453,21 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
         final rank = i - 1;
         final losses = p.matchesPlayed - p.wins;
 
-        return Container(
+        return RankingListTile(
           key: ValueKey('rank_player_${p.key}'),
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.slate900,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: rank == 1
-                  ? AppColors.amber500.withValues(alpha: 0.6)
-                  : rank == 2
-                      ? const Color(0xFF94A3B8).withValues(alpha: 0.4)
-                      : rank == 3
-                          ? const Color(0xFFB45309).withValues(alpha: 0.4)
-                          : AppColors.slate800,
-            ),
+          rank: rank,
+          title: p.name,
+          subtitle: Text(
+            '${p.matchesPlayed} partidas (${p.wins}G - ${losses >= 0 ? losses : 0}P)',
+            style: const TextStyle(fontSize: 11, color: AppColors.slate400),
           ),
-          child: Row(
-            children: [
-              _buildRankBadge(rank),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      p.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: AppColors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${p.matchesPlayed} partidas (${p.wins}G - ${losses >= 0 ? losses : 0}P)',
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.slate400),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.indigo950,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: AppColors.indigo500.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      '${p.wins} Vic',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.indigo400,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${p.winRate.toStringAsFixed(0)}% efectividad',
-                    style: const TextStyle(
-                        fontSize: 10, color: AppColors.slate500),
-                  ),
-                ],
-              ),
-            ],
-          ),
+          wins: p.wins,
+          winRate: p.winRate,
+          badgeBgColor: AppColors.indigo950,
+          badgeBorderColor: AppColors.indigo500,
+          badgeTextColor: AppColors.indigo400,
         );
       },
-    );
-  }
-
-  Widget _buildRankBadge(int rank) {
-    Color bg;
-    Color border;
-    IconData? icon;
-
-    if (rank == 1) {
-      bg = const Color(0xFFD97706);
-      border = const Color(0xFFFDE68A);
-      icon = Icons.emoji_events;
-    } else if (rank == 2) {
-      bg = const Color(0xFF475569);
-      border = const Color(0xFFCBD5E1);
-      icon = Icons.looks_two;
-    } else if (rank == 3) {
-      bg = const Color(0xFF92400E);
-      border = const Color(0xFFFBBF24);
-      icon = Icons.looks_3;
-    } else {
-      bg = AppColors.slate800;
-      border = AppColors.slate700;
-    }
-
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        color: bg,
-        shape: BoxShape.circle,
-        border: Border.all(color: border.withValues(alpha: 0.5)),
-      ),
-      alignment: Alignment.center,
-      child: icon != null
-          ? Icon(icon, size: 16, color: Colors.white)
-          : Text(
-              '#$rank',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold),
-            ),
-    );
-  }
-
-  Widget _buildTeamsPodium(List<TeamStats> top3) {
-    if (top3.length < 2) return const SizedBox.shrink();
-
-    final t1 = top3[0];
-    final t2 = top3[1];
-    final t3 = top3.length > 2 ? top3[2] : null;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppColors.slate900,
-            AppColors.slate900.withValues(alpha: 0.4),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.slate800),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // #2 Plata
-          _buildPodiumStep(
-            rank: 2,
-            name: t2.displayName,
-            wins: t2.wins,
-            color: const Color(0xFF94A3B8),
-            height: 65,
-          ),
-          // #1 Oro
-          _buildPodiumStep(
-            rank: 1,
-            name: t1.displayName,
-            wins: t1.wins,
-            color: AppColors.amber400,
-            height: 85,
-            isCenter: true,
-          ),
-          // #3 Bronce (si existe)
-          if (t3 != null)
-            _buildPodiumStep(
-              rank: 3,
-              name: t3.displayName,
-              wins: t3.wins,
-              color: const Color(0xFFD97706),
-              height: 52,
-            )
-          else
-            const SizedBox(width: 80),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlayersPodium(List<PlayerStats> top3) {
-    if (top3.length < 2) return const SizedBox.shrink();
-
-    final p1 = top3[0];
-    final p2 = top3[1];
-    final p3 = top3.length > 2 ? top3[2] : null;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppColors.slate900,
-            AppColors.slate900.withValues(alpha: 0.4),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.slate800),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // #2 Plata
-          _buildPodiumStep(
-            rank: 2,
-            name: p2.name,
-            wins: p2.wins,
-            color: const Color(0xFF94A3B8),
-            height: 65,
-          ),
-          // #1 Oro
-          _buildPodiumStep(
-            rank: 1,
-            name: p1.name,
-            wins: p1.wins,
-            color: AppColors.amber400,
-            height: 85,
-            isCenter: true,
-          ),
-          // #3 Bronce
-          if (p3 != null)
-            _buildPodiumStep(
-              rank: 3,
-              name: p3.name,
-              wins: p3.wins,
-              color: const Color(0xFFD97706),
-              height: 52,
-            )
-          else
-            const SizedBox(width: 80),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPodiumStep({
-    required int rank,
-    required String name,
-    required int wins,
-    required Color color,
-    required double height,
-    bool isCenter = false,
-  }) {
-    return Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            rank == 1 ? Icons.emoji_events : Icons.military_tech,
-            size: isCenter ? 26 : 20,
-            color: color,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            name,
-            style: TextStyle(
-              fontSize: isCenter ? 12 : 11,
-              fontWeight: FontWeight.bold,
-              color: AppColors.white,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            '$wins Vic',
-            style: TextStyle(
-              fontSize: 10,
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Container(
-            height: height,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(8)),
-              border: Border.all(color: color.withValues(alpha: 0.3)),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              '#$rank',
-              style: TextStyle(
-                fontSize: isCenter ? 20 : 16,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState({required bool isTeams}) {
-    final periodText = _selectedMonth != null
-        ? _formatMonthYear(_selectedMonth!)
-        : 'el período seleccionado';
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isTeams ? Icons.groups_outlined : Icons.person_search_outlined,
-              size: 48,
-              color: AppColors.slate600,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Sin partidas en $periodText',
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                color: AppColors.white,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'No se registraron juegos durante este mes.\nPuedes explorar otros meses o consultar el histórico general.',
-              style: TextStyle(fontSize: 12, color: AppColors.slate400),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            if (_selectedMonth != null)
-              OutlinedButton.icon(
-                icon: const Icon(Icons.history,
-                    size: 16, color: AppColors.emerald400),
-                label: const Text(
-                  'Ver Histórico Total',
-                  style: TextStyle(color: AppColors.emerald400),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.emerald600),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-                onPressed: () {
-                  setState(() => _selectedMonth = null);
-                  unawaited(_loadFromServer());
-                },
-              ),
-          ],
-        ),
-      ),
     );
   }
 }
