@@ -225,8 +225,8 @@ Todo cambio en este plan debe respetar las siguientes reglas para **no corromper
 **Por qué al final:** Con producción segura, libre de bugs críticos y con suites TDD robustas, se paga la deuda estructural sin riesgo de regresiones.
 
 ### Alcance (dividido en PRs pequeños e independientes)
-1. **Flutter — Descomposición de pantallas monolíticas (SRP):**
-   - Extraer widgets cohesivos de `league_home_screen.dart` (971 LOC), `league_manager_screen.dart` (863 LOC), `global_ranking_screen.dart` (861 LOC, unificando podios y listas) y `league_dialogs.dart` (724 LOC).
+1. **Flutter — Descomposición de pantallas monolíticas (SRP) *(PR 5A completado, consolidación pendiente)*:**
+   - ✅ Extraídos widgets cohesivos de `league_home_screen.dart`, `league_manager_screen.dart`, `global_ranking_screen.dart` y `league_dialogs.dart` bajo `lib/widgets/league/` y `lib/widgets/league_dialogs/`.
    - Consolidar `LeaderboardScreen` y `GlobalRankingScreen` en una sola pantalla de clasificaciones coherente (tab Dispositivo vs Servidor + selector mensual).
 2. **Flutter — Inversión de dependencias (Regla BETA):**
    - Definir contratos `ILeagueRepository` / `ILeaderboardRepository` en `Domain`/`Application`, mover `SharedPreferences` y `ApiClient` a `Infrastructure`, eliminar llamadas directas de `screens/` a `ApiClient` y retirar `resetForTesting()` al soportar DI en tests.

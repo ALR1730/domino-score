@@ -1,9 +1,16 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../../models/league.dart';
 import '../../services/api_client.dart';
 import '../../services/league_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/league/league_empty_state.dart';
+import '../../widgets/league/league_info_banner.dart';
+import '../../widgets/league/league_matches_history_tab.dart';
+import '../../widgets/league/league_participants_tab.dart';
+import '../../widgets/league/league_rankings_tab.dart';
 import '../../widgets/league_dialogs.dart';
 import 'global_ranking_screen.dart';
 import 'league_manager_screen.dart';
@@ -101,6 +108,12 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
     super.dispose();
   }
 
+  void _openLeagueManager() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const LeagueManagerScreen()),
+    );
+  }
+
   void _showCreateLeagueDialog() {
     showCreateLeagueDialog(
       context,
@@ -121,7 +134,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
     );
   }
 
-  void _showAddParticipantDialog(League league) {
+  void _showAddParticipantDialog() {
     showAddParticipantDialog(
       context,
       onAdd: (name) => _service.addParticipantToActiveLeague(name),
@@ -191,7 +204,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                         duration: Duration(milliseconds: 900),
                       ),
                     );
-                    _checkServerStatus();
+                    unawaited(_checkServerStatus());
                   },
                   child: Container(
                     padding:
@@ -256,24 +269,14 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                 tooltip: 'Explorar Ligas (Dispositivo y Servidor)',
                 icon: const Icon(Icons.format_list_bulleted,
                     color: AppColors.emerald400, size: 21),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => const LeagueManagerScreen()),
-                  );
-                },
+                onPressed: _openLeagueManager,
               ),
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert, color: AppColors.slate300),
                 color: AppColors.slate900,
                 onSelected: (val) {
                   if (val == 'sync') _handleSync();
-                  if (val == 'manage') {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) => const LeagueManagerScreen()),
-                    );
-                  }
+                  if (val == 'manage') _openLeagueManager();
                   if (val == 'create') _showCreateLeagueDialog();
                   if (val == 'join') _showJoinLeagueDialog();
                   if (val == 'delete' && active != null) {
@@ -384,8 +387,51 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                 : null,
           ),
           body: active == null
-              ? _buildNoActiveLeagueView()
-              : _buildActiveLeagueView(active),
+              ? LeagueEmptyState(
+                  onJoin: _showJoinLeagueDialog,
+                  onCreate: _showCreateLeagueDialog,
+                  onExplore: _openLeagueManager,
+                )
+              : Column(
+                  children: [
+                    LeagueInfoBanner(
+                      league: active,
+                      onDelete: () => _showDeleteActiveLeagueDialog(active),
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          LeagueRankingsTab(
+                            league: active,
+                            isSyncing: _isSyncing,
+                            onSync: _handleSync,
+                            onOpenMonthlyRanking: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => GlobalRankingScreen(
+                                    leagueId: active.id,
+                                    leagueName: active.name,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          LeagueParticipantsTab(
+                            participants: active.participants,
+                            onAddParticipant: _showAddParticipantDialog,
+                            onRemoveParticipant: (name) => unawaited(
+                              _service.removeParticipantFromActiveLeague(name),
+                            ),
+                          ),
+                          LeagueMatchesHistoryTab(
+                            matches: active.matchesByDateDesc,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
           floatingActionButton: active != null
               ? FloatingActionButton.extended(
                   onPressed: () {
@@ -403,647 +449,6 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                   ),
                 )
               : null,
-        );
-      },
-    );
-  }
-
-  Widget _buildNoActiveLeagueView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.slate900,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.slate800),
-              ),
-              child: const Icon(Icons.emoji_events_outlined,
-                  size: 48, color: AppColors.amber300),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'No tienes ninguna liga activa',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.white),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Crea una liga para registrar participantes o únete a una existente con su clave.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: AppColors.slate400),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _showJoinLeagueDialog,
-                    icon: const Icon(Icons.vpn_key_outlined,
-                        size: 16, color: AppColors.amber300),
-                    label: const Text('Unirse con Clave',
-                        style: TextStyle(color: AppColors.white)),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.slate700),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _showCreateLeagueDialog,
-                    icon: const Icon(Icons.add, size: 16, color: Colors.white),
-                    label: const Text('Crear Liga',
-                        style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.emerald600,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => const LeagueManagerScreen()),
-                  );
-                },
-                icon: const Icon(Icons.cloud_outlined,
-                    size: 16, color: AppColors.emerald400),
-                label: const Text(
-                  'Ver Ligas Registradas en la Nube / Dispositivo',
-                  style: TextStyle(
-                      color: AppColors.emerald400,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActiveLeagueView(League league) {
-    return Column(
-      children: [
-        // League info banner
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          color: AppColors.slate900.withValues(alpha: 0.6),
-          child: Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 6,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.tag, size: 14, color: AppColors.slate400),
-                  const SizedBox(width: 4),
-                  Text(
-                    'ID: ${league.id}',
-                    style: const TextStyle(
-                        fontSize: 11,
-                        fontFamily: 'monospace',
-                        color: AppColors.slate400),
-                  ),
-                ],
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.amber950.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: AppColors.amber600.withValues(alpha: 0.5)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.key,
-                            size: 12, color: AppColors.amber300),
-                        const SizedBox(width: 4),
-                        Text(
-                          'PIN: ${league.pin}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.amber300,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: () => _showDeleteActiveLeagueDialog(league),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: Colors.redAccent.withValues(alpha: 0.6)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.delete_outline,
-                              size: 13, color: Colors.redAccent),
-                          SizedBox(width: 4),
-                          Text(
-                            'Eliminar Liga',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.redAccent,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        // Tabs Content
-        Expanded(
-          child: TabBarView(
-            controller: _tabController,
-            children: [
-              _buildLeagueRankingsTab(league),
-              _buildLeagueParticipantsTab(league),
-              _buildLeagueMatchesHistoryTab(league),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLeagueRankingsTab(League league) {
-    final teams = league.teamsRanked;
-    final players = league.playersRanked;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Expanded(
-                child: Text(
-                  'RANKING DE PAREJAS / EQUIPOS',
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.emerald400,
-                      letterSpacing: 0.8),
-                ),
-              ),
-              const SizedBox(width: 8),
-              InkWell(
-                onTap: _handleSync,
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.emerald500.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                        color: AppColors.emerald500.withValues(alpha: 0.4)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.cloud_upload_outlined,
-                          size: 12, color: AppColors.emerald400),
-                      const SizedBox(width: 4),
-                      Text(
-                        _isSyncing
-                            ? 'Sincronizando...'
-                            : 'Sincronizar Servidor',
-                        style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.emerald400),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          InkWell(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => GlobalRankingScreen(
-                    leagueId: league.id,
-                    leagueName: league.name,
-                  ),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.emerald600.withValues(alpha: 0.2),
-                    AppColors.slate900,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: AppColors.emerald500.withValues(alpha: 0.35)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.calendar_month,
-                      color: AppColors.emerald400, size: 20),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Ver Ranking Mensual Dinámico',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.white,
-                          ),
-                        ),
-                        Text(
-                          'Filtra por mes/año, podio y clasificaciones por parejas e individual',
-                          style: TextStyle(
-                              fontSize: 10, color: AppColors.slate400),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.chevron_right,
-                      color: AppColors.emerald400, size: 20),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (teams.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.slate900,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.slate800),
-              ),
-              child: const Text(
-                'Aún no hay partidas jugadas en esta liga. Inicia una partida para generar la clasificación.',
-                style: TextStyle(fontSize: 12, color: AppColors.slate400),
-                textAlign: TextAlign.center,
-              ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: teams.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 6),
-              itemBuilder: (ctx, i) {
-                final t = teams[i];
-                return Container(
-                  key: ValueKey('home_team_${t.key}'),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.slate900,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.slate800),
-                  ),
-                  child: Row(
-                    children: [
-                      Text('#${i + 1}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.slate400)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(t.displayName,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13)),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.emerald950,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                              color:
-                                  AppColors.emerald500.withValues(alpha: 0.3)),
-                        ),
-                        child: Text('${t.wins} V',
-                            style: const TextStyle(
-                                color: AppColors.emerald400,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11)),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          const SizedBox(height: 20),
-          const Text(
-            'RANKING INDIVIDUAL DE JUGADORES',
-            style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: AppColors.indigo400,
-                letterSpacing: 0.8),
-          ),
-          const SizedBox(height: 8),
-          if (players.isEmpty)
-            const Text('Sin datos individuales aún.',
-                style: TextStyle(fontSize: 12, color: AppColors.slate500))
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: players.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 6),
-              itemBuilder: (ctx, i) {
-                final p = players[i];
-                return Container(
-                  key: ValueKey('home_player_${p.key}'),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.slate900,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.slate800),
-                  ),
-                  child: Row(
-                    children: [
-                      Text('#${i + 1}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.slate400)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(p.name,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13)),
-                      ),
-                      Text('${p.matchesPlayed} jugadas • ',
-                          style: const TextStyle(
-                              color: AppColors.slate500, fontSize: 11)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.indigo950,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                              color:
-                                  AppColors.indigo500.withValues(alpha: 0.3)),
-                        ),
-                        child: Text('${p.wins} V',
-                            style: const TextStyle(
-                                color: AppColors.indigo400,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11)),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLeagueParticipantsTab(League league) {
-    final participants = league.participants;
-
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
-      itemCount: participants.isEmpty ? 3 : participants.length + 2,
-      itemBuilder: (ctx, i) {
-        if (i == 0) {
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  '${participants.length} PARTICIPANTES REGISTRADOS',
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.slate400),
-                ),
-              ),
-              const SizedBox(width: 8),
-              TextButton.icon(
-                onPressed: () => _showAddParticipantDialog(league),
-                icon: const Icon(Icons.person_add, size: 14),
-                label: const Text('Agregar', style: TextStyle(fontSize: 12)),
-              ),
-            ],
-          );
-        }
-        if (i == 1) return const SizedBox(height: 8);
-
-        if (participants.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              'No hay participantes en la liga. Agrega jugadores para armar las partidas.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.slate500, fontSize: 12),
-            ),
-          );
-        }
-
-        final p = participants[i - 2];
-        return Container(
-          key: ValueKey('participant_$p'),
-          margin: const EdgeInsets.only(bottom: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.slate900,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.slate800),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    const CircleAvatar(
-                      radius: 14,
-                      backgroundColor: AppColors.slate800,
-                      child: Icon(Icons.person,
-                          size: 16, color: AppColors.slate300),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        p,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close,
-                    size: 16, color: AppColors.slate500),
-                onPressed: () => _service.removeParticipantFromActiveLeague(p),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildLeagueMatchesHistoryTab(League league) {
-    // Ordenadas por fecha, de la más reciente a la más antigua.
-    final matches = league.matchesByDateDesc;
-
-    if (matches.isEmpty) {
-      return const Center(
-        child: Text(
-          'Sin partidas jugadas aún en esta liga.',
-          style: TextStyle(color: AppColors.slate500, fontSize: 13),
-        ),
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
-      itemCount: matches.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (ctx, i) {
-        final m = matches[i];
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.slate900,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.slate800),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${m.date.day}/${m.date.month}/${m.date.year}',
-                    style: const TextStyle(
-                        color: AppColors.slate500, fontSize: 11),
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      m.winnerTeam == 1
-                          ? 'Ganó ${m.team1DisplayName}'
-                          : 'Ganó ${m.team2DisplayName}',
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: m.winnerTeam == 1
-                            ? AppColors.emerald400
-                            : AppColors.indigo400,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${m.team1DisplayName}: ${m.score1} pts',
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      textAlign: TextAlign.start,
-                      style: const TextStyle(
-                          color: AppColors.slate300, fontSize: 12),
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 6),
-                    child: Text('vs',
-                        style:
-                            TextStyle(color: AppColors.slate600, fontSize: 11)),
-                  ),
-                  Expanded(
-                    child: Text(
-                      '${m.team2DisplayName}: ${m.score2} pts',
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      textAlign: TextAlign.end,
-                      style: const TextStyle(
-                          color: AppColors.slate300, fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
         );
       },
     );

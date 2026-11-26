@@ -115,4 +115,49 @@
 
 **Verificación:** `flutter analyze` sin issues; **54 tests** de Flutter y **22 tests** del backend en verde tras los cambios de PIN.
 
+---
+
+# Plan v2 — Hardening, Estabilización en Producción y Refactorización (2026-11)
+
+> Plan de hardening y estabilización definido en `.alr/specs/hardening-produccion-v2/plan.md`. Todas las fases posteriores al Plan v1 se entregan mediante Pull Requests dedicados hacia `main`.
+
+## Fase 0 (P0-A) — Contención de Seguridad e Higiene (PR #1)
+- Corrección de vulnerabilidades de dependencias en `backend/` (`npm audit fix`).
+- Endurecimiento de contenedor en `backend/Dockerfile` (`USER node` sin privilegios root y `npm ci --omit=dev`), exclusión con `.dockerignore` y ajuste en `render.yaml`.
+- Eliminación de credenciales/valores fijos en `backend/scripts/seed-league.js` mediante variables de entorno y apagado ordenado (`SIGTERM`/`SIGINT`) en `backend/src/server.js`.
+- Retiro de `backend/data/leagues.json` del control de versiones.
+
+## Fase 1 (P0-B) — Endurecimiento del Backend e Integridad Mongo-First (PR #2)
+- Límite de tasa (`backend/src/middleware/rateLimit.js`) con expulsión FIFO acotada (`maxKeys`), conteo selectivo (`countOnlyStatus: 401`) y soporte de `keyGenerator`.
+- Validación estricta de esquemas de entrada en `backend/src/validation/leagueSchemas.js`.
+- Generación aleatoria de PIN excluyendo `'1234'` y comparación en tiempo constante en `backend/src/utils/pin.js`.
+- Persistencia Mongo-first en `_commitLeague` (`backend/src/store.js`), omitiendo escrituras síncronas en disco cuando MongoDB está conectado.
+
+## Fase 2 (P0-C) — Corrección de Bugs Silenciosos en Flutter (PR #3)
+- `GameState.casual()` preserva nombres personalizados y `metaPuntos`, y bloquea `agregarRonda` cuando la partida ya terminó.
+- Corrección del ciclo de vida y overflows en `WinnerDialog`, eliminando el bloqueo persistente `_resultRecorded`.
+- Inicialización segura en `LeagueService` (`_loadFuture` / `ensureLoaded()`), cola `_pendingSyncLeagueIds` para sincronización pendiente y `generateSecurePin()`.
+- Conexión de `GlobalRankingScreen` a `ApiClient` (`fetchGlobalRankings`, `fetchLeagueRankings`) y manejo explícito de estado offline/error en `LeagueManagerScreen`.
+- CI de Flutter fijado a la versión `3.47.7`.
+
+## Fase 3 (P1) — Sincronización de Participantes, Eficiencia de Red y Pulido (PR #4)
+- Reutilización de una sola instancia `http.Client` por zona en `ApiClient` e incorporación de `addParticipant` / `removeParticipant`.
+- Sincronización bidireccional de participantes y merge seguro (`_mergeServerLeagueInto`) en `LeagueService`.
+- Soporte de parámetro opcional `tzOffsetMinutes` en rankings (`leagueSchemas.js`, `utils/rankings.js`, `store.js`, `routes/rankings.js` y `global_ranking_screen.dart`).
+- Refresco automático en `LeagueHomeScreen` mediante `WidgetsBindingObserver` + polling cada `45s`, protecciones contra overflow y eliminación de referencias visuales `"Render"` en la UI.
+- Pulido de manifiesto/viewport Android y Web, y endurecimiento de CI (`dart format`, eliminación de `continue-on-error` y `npm audit --omit=dev --audit-level=high`).
+
+## Fase 4 (P1/P2) — Migración de PINs a `scrypt` (`pinHash`) en MongoDB Atlas (PR #5)
+- Módulo `backend/src/utils/pinCrypto.js` con hashing `scrypt` y salt aleatorio de 16 bytes.
+- Estrategia **Expand → Dual-Read → Lazy Upgrade** en `backend/src/store.js` y `backend/src/routes/leagues.js` (retrocompatible con PINs existentes).
+- Scripts operativos: `backend/scripts/backup-leagues.js` (respaldo JSON de solo lectura + SHA-256 fuera de Git) y `backend/scripts/migrate-pins.js` (`--dry-run` / `--apply`).
+- Pruebas unitarias de criptografía en `backend/test/pin-crypto.test.js`. *(Nota: la base de datos Atlas en producción permanece intacta; la ejecución de `--apply` queda pendiente de aprobación explícita).*
+
+## Fase 5A (P2) — Descomposición Modular de Pantallas y Diálogos Flutter (PR #6)
+- División de `lib/widgets/league_dialogs.dart` en módulos cohesivos bajo `lib/widgets/league_dialogs/` (`dialog_chrome.dart`, `create_league_dialog.dart`, `join_league_dialog.dart`, `add_participant_dialog.dart`, `delete_league_dialogs.dart`) manteniendo `league_dialogs.dart` como barrel retrocompatible.
+- Extracción de componentes reutilizables bajo `lib/widgets/league/` (`ranking_podium.dart`, `ranking_list_tile.dart`, `month_filter_bar.dart`, `league_empty_state.dart`, `league_info_banner.dart`, `league_rankings_tab.dart`, `league_participants_tab.dart`, `league_matches_history_tab.dart`, `local_leagues_tab.dart`, `server_leagues_tab.dart`).
+- Refactorización de `global_ranking_screen.dart`, `league_home_screen.dart` y `league_manager_screen.dart` hacia orquestación de estado y composición limpia (SRP), preservando contratos, claves `ValueKey`, polling de `45s`, `tzOffsetMinutes` y textos de UI.
+- Cobertura de pruebas unitarias/widget para los componentes extraídos en `test/league_widgets_test.dart`.
+
+
 
