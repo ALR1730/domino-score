@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../models/league.dart';
-import '../../services/api_client.dart';
 import '../../services/league_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/league/local_leagues_tab.dart';
@@ -11,7 +10,9 @@ import '../../widgets/league/server_leagues_tab.dart';
 import '../../widgets/league_dialogs.dart';
 
 class LeagueManagerScreen extends StatefulWidget {
-  const LeagueManagerScreen({super.key});
+  final LeagueService? leagueService;
+
+  const LeagueManagerScreen({super.key, this.leagueService});
 
   @override
   State<LeagueManagerScreen> createState() => _LeagueManagerScreenState();
@@ -20,8 +21,8 @@ class LeagueManagerScreen extends StatefulWidget {
 class _LeagueManagerScreenState extends State<LeagueManagerScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final LeagueService _leagueService = LeagueService();
-  final ApiClient _apiClient = ApiClient();
+  late final LeagueService _leagueService =
+      widget.leagueService ?? LeagueService();
 
   List<Map<String, dynamic>> _serverLeagues = [];
   bool _isLoadingServer = false;
@@ -47,7 +48,7 @@ class _LeagueManagerScreenState extends State<LeagueManagerScreen>
       _serverError = null;
     });
 
-    final list = await _apiClient.fetchServerLeagues();
+    final list = await _leagueService.fetchServerLeagues();
     if (!mounted) return;
 
     if (list == null) {
@@ -116,15 +117,8 @@ class _LeagueManagerScreenState extends State<LeagueManagerScreen>
       context,
       leagueId: leagueId,
       leagueName: leagueName,
-      onDeleteOnServer: (id, pin) async {
-        final res = await _apiClient.deleteLeague(id, pin: pin);
-        if (res['success'] != true) {
-          return res['error'] ?? 'PIN incorrecto o error al eliminar';
-        }
-        // Quitar también la copia local (si existe) sin repetir la llamada al server
-        await _leagueService.deleteLeague(id, deleteOnServer: false);
-        return null;
-      },
+      onDeleteOnServer: (id, pin) =>
+          _leagueService.deleteServerLeague(id, pin: pin),
       onDeleted: () {
         unawaited(_loadServerLeagues());
         if (mounted) {

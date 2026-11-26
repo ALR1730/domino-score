@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import '../models/game_state.dart';
 import '../screens/leaderboard_screen.dart';
+import '../services/leaderboard_service.dart';
+import '../services/league_service.dart';
 import '../theme/app_colors.dart';
 import 'settings_dialog.dart';
 
 class HeaderWidget extends StatelessWidget {
   final GameState gameState;
+  final LeagueService? leagueService;
+  final LeaderboardService? leaderboardService;
 
   const HeaderWidget({
     super.key,
     required this.gameState,
+    this.leagueService,
+    this.leaderboardService,
   });
 
   @override
@@ -88,7 +94,11 @@ class HeaderWidget extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                      builder: (ctx) => const LeaderboardScreen()),
+                    builder: (ctx) => LeaderboardScreen(
+                      leagueService: leagueService,
+                      leaderboardService: leaderboardService,
+                    ),
+                  ),
                 );
               },
               borderRadius: BorderRadius.circular(12),

@@ -57,11 +57,12 @@ LeagueMatch _match(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  final service = LeagueService();
+  late LeagueService service;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
-    await service.resetForTesting();
+    service = LeagueService.isolated();
+    await service.ensureLoaded();
   });
 
   group('LeagueService.createLeague', () {
@@ -122,7 +123,8 @@ void main() {
       SharedPreferences.setMockInitialValues({
         _leaguesKey: _seedLeague(id: 'LIG-1000', name: 'Vecinos', pin: '9999'),
       });
-      await service.resetForTesting();
+      service = LeagueService.isolated();
+      await service.ensureLoaded();
 
       final error = await service.joinLeague(nameOrId: 'Vecinos', pin: '9999');
       expect(error, isNull);
@@ -133,7 +135,8 @@ void main() {
       SharedPreferences.setMockInitialValues({
         _leaguesKey: _seedLeague(id: 'LIG-1000', name: 'Vecinos', pin: '9999'),
       });
-      await service.resetForTesting();
+      service = LeagueService.isolated();
+      await service.ensureLoaded();
 
       final error = await service.joinLeague(nameOrId: 'LIG-1000', pin: '0000');
       expect(error, contains('incorrecta'));
@@ -184,7 +187,8 @@ void main() {
         _leaguesKey: _seedLeague(id: 'LIG-1000', name: 'A'),
         _activeKey: 'LIG-1000',
       });
-      await service.resetForTesting();
+      service = LeagueService.isolated();
+      await service.ensureLoaded();
 
       // Liga distinta (no activa) a la que se le registra la partida.
       final other = await runWithFakeServer(
@@ -219,7 +223,8 @@ void main() {
         _leaguesKey: _seedLeague(id: 'LIG-1000', name: 'A'),
         _activeKey: 'LIG-1000',
       });
-      await service.resetForTesting();
+      service = LeagueService.isolated();
+      await service.ensureLoaded();
 
       final error =
           await service.deleteLeague('LIG-1000', deleteOnServer: false);
@@ -233,7 +238,8 @@ void main() {
         _leaguesKey: _seedLeague(id: 'LIG-1000', name: 'A', pin: '9999'),
         _activeKey: 'LIG-1000',
       });
-      await service.resetForTesting();
+      service = LeagueService.isolated();
+      await service.ensureLoaded();
 
       final error = await runWithFakeServer(
         (request) async => _json({
@@ -271,7 +277,8 @@ void main() {
         ),
         _activeKey: 'LIG-1000',
       });
-      await service.resetForTesting();
+      service = LeagueService.isolated();
+      await service.ensureLoaded();
 
       await runWithFakeServer(
         (request) async => _json({
@@ -350,7 +357,8 @@ void main() {
         ]))[0],
       ]);
       SharedPreferences.setMockInitialValues({_leaguesKey: seeded});
-      await service.resetForTesting();
+      service = LeagueService.isolated();
+      await service.ensureLoaded();
 
       final teams = service.getGlobalTeamsRanked();
       expect(teams.map((t) => t.key),
@@ -388,7 +396,8 @@ void main() {
       SharedPreferences.setMockInitialValues({
         _leaguesKey: jsonEncode([league])
       });
-      await service.resetForTesting();
+      service = LeagueService.isolated();
+      await service.ensureLoaded();
 
       final teams = service.getGlobalTeamsRanked();
       expect(teams.length, 1);
@@ -459,7 +468,8 @@ void main() {
         _leaguesKey: _seedLeague(id: 'LIG-Q1', name: 'Cola', pin: '4321'),
         _activeKey: 'LIG-Q1',
       });
-      await service.resetForTesting();
+      service = LeagueService.isolated();
+      await service.ensureLoaded();
 
       final releaseSync = Completer<void>();
       final syncedPayloads = <String>[];
@@ -525,7 +535,8 @@ void main() {
         _leaguesKey: _seedLeague(id: 'LIG-P1', name: 'Liga P', pin: '4321'),
         _activeKey: 'LIG-P1',
       });
-      await service.resetForTesting();
+      service = LeagueService.isolated();
+      await service.ensureLoaded();
 
       final requests = <http.Request>[];
       await runWithFakeServer((req) async {
@@ -574,7 +585,8 @@ void main() {
         _leaguesKey: jsonEncode(seeded),
         _activeKey: 'LIG-P2',
       });
-      await service.resetForTesting();
+      service = LeagueService.isolated();
+      await service.ensureLoaded();
 
       final requests = <http.Request>[];
       await runWithFakeServer((req) async {
@@ -622,7 +634,8 @@ void main() {
         _leaguesKey: jsonEncode(seeded),
         _activeKey: 'LIG-M1',
       });
-      await service.resetForTesting();
+      service = LeagueService.isolated();
+      await service.ensureLoaded();
 
       await runWithFakeServer(
         (req) async => _json({

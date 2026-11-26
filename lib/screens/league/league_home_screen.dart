@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../models/league.dart';
-import '../../services/api_client.dart';
 import '../../services/league_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/league/league_empty_state.dart';
@@ -17,7 +16,9 @@ import 'league_manager_screen.dart';
 import 'match_setup_screen.dart';
 
 class LeagueHomeScreen extends StatefulWidget {
-  const LeagueHomeScreen({super.key});
+  final LeagueService? leagueService;
+
+  const LeagueHomeScreen({super.key, this.leagueService});
 
   @override
   State<LeagueHomeScreen> createState() => _LeagueHomeScreenState();
@@ -27,7 +28,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   static const Duration _autoSyncInterval = Duration(seconds: 45);
 
-  final LeagueService _service = LeagueService();
+  late final LeagueService _service = widget.leagueService ?? LeagueService();
   late TabController _tabController;
   bool _isSyncing = false;
   Timer? _autoSyncTimer;
@@ -64,7 +65,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
 
   Future<void> _checkServerStatus() async {
     try {
-      final available = await ApiClient().isServerAvailable();
+      final available = await _service.isServerAvailable();
       if (mounted) setState(() => _isServerOnline = available);
       if (available && _service.allLeagues.isNotEmpty) {
         await _service.syncAllLeaguesWithServer();
@@ -110,7 +111,9 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
 
   void _openLeagueManager() {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const LeagueManagerScreen()),
+      MaterialPageRoute(
+        builder: (_) => LeagueManagerScreen(leagueService: _service),
+      ),
     );
   }
 
@@ -412,6 +415,7 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                                   builder: (_) => GlobalRankingScreen(
                                     leagueId: active.id,
                                     leagueName: active.name,
+                                    leagueService: _service,
                                   ),
                                 ),
                               );
@@ -437,7 +441,11 @@ class _LeagueHomeScreenState extends State<LeagueHomeScreen>
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                          builder: (ctx) => MatchSetupScreen(league: active)),
+                        builder: (ctx) => MatchSetupScreen(
+                          league: active,
+                          leagueService: _service,
+                        ),
+                      ),
                     );
                   },
                   backgroundColor: AppColors.emerald600,

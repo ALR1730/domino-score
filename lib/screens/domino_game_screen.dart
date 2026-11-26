@@ -22,6 +22,8 @@ class DominoGameScreen extends StatefulWidget {
   final List<String>? team1Members;
   final List<String>? team2Members;
   final bool ownsGameState;
+  final LeagueService? leagueService;
+  final LeaderboardService? leaderboardService;
 
   const DominoGameScreen({
     super.key,
@@ -31,6 +33,8 @@ class DominoGameScreen extends StatefulWidget {
     this.team1Members,
     this.team2Members,
     this.ownsGameState = false,
+    this.leagueService,
+    this.leaderboardService,
   });
 
   @override
@@ -38,6 +42,10 @@ class DominoGameScreen extends StatefulWidget {
 }
 
 class _DominoGameScreenState extends State<DominoGameScreen> {
+  late final LeagueService _leagueService =
+      widget.leagueService ?? LeagueService();
+  late final LeaderboardService _leaderboardService =
+      widget.leaderboardService ?? LeaderboardService();
   static String _generateMatchId() {
     final rng = Random.secure();
     final hex = List<String>.generate(
@@ -100,7 +108,11 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
       showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) => WinnerDialog(gameState: widget.gameState),
+        builder: (ctx) => WinnerDialog(
+          gameState: widget.gameState,
+          leagueService: _leagueService,
+          leaderboardService: _leaderboardService,
+        ),
       );
     });
   }
@@ -110,13 +122,13 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
   /// SnackBar se muestra al terminar, con un mensaje según lo que realmente
   /// se registró.
   Future<void> _recordResults(LeagueMatch match) async {
-    final recordedLocally = await LeaderboardService().recordMatch(match);
+    final recordedLocally = await _leaderboardService.recordMatch(match);
 
     bool recordedInLeague = false;
     final leagueId = widget.leagueId;
     if (widget.isLeagueMode && leagueId != null && leagueId.isNotEmpty) {
       recordedInLeague =
-          await LeagueService().recordMatchToLeague(leagueId, match);
+          await _leagueService.recordMatchToLeague(leagueId, match);
     }
 
     if (!mounted) return;
@@ -210,7 +222,11 @@ class _DominoGameScreenState extends State<DominoGameScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Encabezado
-                      HeaderWidget(gameState: widget.gameState),
+                      HeaderWidget(
+                        gameState: widget.gameState,
+                        leagueService: _leagueService,
+                        leaderboardService: _leaderboardService,
+                      ),
 
                       const SizedBox(height: 12),
 

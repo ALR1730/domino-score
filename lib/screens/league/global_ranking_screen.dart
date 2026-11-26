@@ -3,21 +3,28 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../models/leaderboard_entry.dart';
-import '../../services/api_client.dart';
+import '../../services/leaderboard_service.dart';
 import '../../services/league_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/league/month_filter_bar.dart';
+import '../../widgets/league/ranking_controls.dart';
 import '../../widgets/league/ranking_list_tile.dart';
 import '../../widgets/league/ranking_podium.dart';
 
 class GlobalRankingScreen extends StatefulWidget {
   final String? leagueId;
   final String? leagueName;
+  final RankingSource initialSource;
+  final LeagueService? leagueService;
+  final LeaderboardService? leaderboardService;
 
   const GlobalRankingScreen({
     super.key,
     this.leagueId,
     this.leagueName,
+    this.initialSource = RankingSource.server,
+    this.leagueService,
+    this.leaderboardService,
   });
 
   @override
@@ -27,28 +34,53 @@ class GlobalRankingScreen extends StatefulWidget {
 class _GlobalRankingScreenState extends State<GlobalRankingScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final LeagueService _service = LeagueService();
+  late final LeagueService _leagueService =
+      widget.leagueService ?? LeagueService();
+  late final LeaderboardService _leaderboardService =
+      widget.leaderboardService ?? LeaderboardService();
+  final TextEditingController _searchController = TextEditingController();
+
+  late RankingSource _source;
+  String _searchQuery = '';
 
   // null significa "Histórico Completo"
   DateTime? _selectedMonth;
-  bool _isLoadingServer = true;
+  bool _isLoadingServer = false;
   bool _isFromServer = false;
+  bool _hasLoadedServerOnce = false;
   List<TeamStats> _serverTeams = const [];
   List<PlayerStats> _serverPlayers = const [];
   List<DateTime> _serverAvailableMonths = const [];
+
+  bool get _isLeagueSpecific => widget.leagueId != null;
+  bool get _isServerMode =>
+      _isLeagueSpecific || _source == RankingSource.server;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _source = _isLeagueSpecific ? RankingSource.server : widget.initialSource;
+    _isLoadingServer = _isServerMode;
+
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.trim().toLowerCase();
+      });
+    });
+
     unawaited(_initAndLoad());
   }
 
   Future<void> _initAndLoad() async {
-    if (!_service.isLoaded) {
-      await _service.ensureLoaded();
+    await Future.wait([
+      _leagueService.ensureLoaded(),
+      _leaderboardService.ensureLoaded(),
+    ]);
+    if (!mounted) return;
+    if (_isServerMode) {
+      await _loadFromServer(pickDefaultMonth: true);
     }
-    await _loadFromServer(pickDefaultMonth: true);
   }
 
   DateTime? _resolveDefaultMonth(List<DateTime> available) {
@@ -66,24 +98,7 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
     if (_isFromServer && _serverAvailableMonths.isNotEmpty) {
       return _serverAvailableMonths;
     }
-    return _service.getAvailableMonths(leagueId: widget.leagueId);
-  }
-
-  Future<ServerRankingResult?> _fetchRankingPeriod({int? year, int? month}) {
-    final tzOffsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
-    if (widget.leagueId != null) {
-      return ApiClient().fetchLeagueRankings(
-        widget.leagueId!,
-        year: year,
-        month: month,
-        tzOffsetMinutes: tzOffsetMinutes,
-      );
-    }
-    return ApiClient().fetchGlobalRankings(
-      year: year,
-      month: month,
-      tzOffsetMinutes: tzOffsetMinutes,
-    );
+    return _leagueService.getAvailableMonths(leagueId: widget.leagueId);
   }
 
   Future<void> _loadFromServer({bool pickDefaultMonth = false}) async {
@@ -91,9 +106,12 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
       setState(() => _isLoadingServer = true);
     }
 
-    var result = await _fetchRankingPeriod(
+    final tzOffsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
+    var result = await _leagueService.fetchRankings(
+      leagueId: widget.leagueId,
       year: pickDefaultMonth ? null : _selectedMonth?.year,
       month: pickDefaultMonth ? null : _selectedMonth?.month,
+      tzOffsetMinutes: tzOffsetMinutes,
     );
 
     if (!mounted) return;
@@ -103,9 +121,11 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
         final defaultMonth = _resolveDefaultMonth(result.availableMonths);
         _selectedMonth = defaultMonth;
         if (defaultMonth != null) {
-          final monthly = await _fetchRankingPeriod(
+          final monthly = await _leagueService.fetchRankings(
+            leagueId: widget.leagueId,
             year: defaultMonth.year,
             month: defaultMonth.month,
+            tzOffsetMinutes: tzOffsetMinutes,
           );
           if (!mounted) return;
           if (monthly != null) {
@@ -120,25 +140,59 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
         _serverAvailableMonths = result.availableMonths;
         _isFromServer = true;
         _isLoadingServer = false;
+        _hasLoadedServerOnce = true;
       });
       return;
     }
 
     if (pickDefaultMonth) {
       _selectedMonth = _resolveDefaultMonth(
-        _service.getAvailableMonths(leagueId: widget.leagueId),
+        _leagueService.getAvailableMonths(leagueId: widget.leagueId),
       );
     }
     setState(() {
       _isFromServer = false;
       _isLoadingServer = false;
+      _hasLoadedServerOnce = true;
     });
+  }
+
+  Future<void> _syncAllAndRefresh() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Sincronizando todas las ligas con el servidor...'),
+      ),
+    );
+    final synced = await _leagueService.syncAllLeaguesWithServer();
+    await _loadFromServer();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          synced
+              ? '✅ Clasificaciones sincronizadas en el servidor.'
+              : '⚠️ No se pudieron sincronizar todas las ligas.',
+        ),
+        backgroundColor: synced ? AppColors.emerald600 : AppColors.amber600,
+      ),
+    );
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSourceChanged(RankingSource next) {
+    if (_source == next) return;
+    setState(() => _source = next);
+    if (next == RankingSource.server &&
+        !_hasLoadedServerOnce &&
+        !_isLoadingServer) {
+      unawaited(_loadFromServer(pickDefaultMonth: true));
+    }
   }
 
   void _selectMonth(DateTime? month) {
@@ -185,10 +239,13 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.leagueName != null
+    final title = _isLeagueSpecific
         ? 'Ranking: ${widget.leagueName}'
-        : 'Ranking General';
+        : (_source == RankingSource.device
+            ? 'Tabla de Clasificación'
+            : 'Ranking General');
     final available = _availableMonths();
+    final showMonthBar = _isServerMode;
 
     return Scaffold(
       backgroundColor: AppColors.slate950,
@@ -196,26 +253,33 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
         backgroundColor: AppColors.slate900,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new,
-              size: 18, color: AppColors.slate300),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            size: 18,
+            color: AppColors.slate300,
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Row(
           children: [
-            const Icon(Icons.emoji_events_outlined,
-                color: AppColors.amber400, size: 20),
+            const Icon(
+              Icons.emoji_events_outlined,
+              color: AppColors.amber400,
+              size: 20,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 title,
                 style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.white),
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.white,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (!_isLoadingServer)
+            if (_isServerMode && !_isLoadingServer)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
@@ -245,30 +309,58 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
           ],
         ),
         actions: [
-          IconButton(
-            icon:
-                const Icon(Icons.refresh, size: 20, color: AppColors.slate300),
-            tooltip: 'Actualizar del servidor',
-            onPressed:
-                _isLoadingServer ? null : () => unawaited(_loadFromServer()),
-          ),
+          if (!_isLeagueSpecific)
+            IconButton(
+              icon: const Icon(
+                Icons.cloud_upload_outlined,
+                size: 20,
+                color: AppColors.emerald400,
+              ),
+              tooltip: 'Sincronizar clasificaciones con el servidor',
+              onPressed: () => unawaited(_syncAllAndRefresh()),
+            ),
+          if (_isServerMode)
+            IconButton(
+              icon: const Icon(
+                Icons.refresh,
+                size: 20,
+                color: AppColors.slate300,
+              ),
+              tooltip: 'Actualizar del servidor',
+              onPressed:
+                  _isLoadingServer ? null : () => unawaited(_loadFromServer()),
+            )
+          else
+            IconButton(
+              icon: const Icon(
+                Icons.delete_outline,
+                size: 20,
+                color: AppColors.rose300,
+              ),
+              tooltip: 'Reiniciar clasificación local',
+              onPressed: () => showResetLeaderboardDialog(
+                context,
+                onConfirmReset: _leaderboardService.resetLeaderboard,
+              ),
+            ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(102),
+          preferredSize: Size.fromHeight(showMonthBar ? 102 : 52),
           child: Column(
             children: [
-              MonthFilterBar(
-                selectedMonth: _selectedMonth,
-                availableMonths: available,
-                onPrevMonth: _prevMonth,
-                onNextMonth: _nextMonth,
-                onOpenPicker: () => showMonthPickerSheet(
-                  context,
+              if (showMonthBar)
+                MonthFilterBar(
                   selectedMonth: _selectedMonth,
                   availableMonths: available,
-                  onSelectMonth: _selectMonth,
+                  onPrevMonth: _prevMonth,
+                  onNextMonth: _nextMonth,
+                  onOpenPicker: () => showMonthPickerSheet(
+                    context,
+                    selectedMonth: _selectedMonth,
+                    availableMonths: available,
+                    onSelectMonth: _selectMonth,
+                  ),
                 ),
-              ),
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
@@ -287,7 +379,9 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
                   labelColor: Colors.white,
                   unselectedLabelColor: AppColors.slate400,
                   labelStyle: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.bold),
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
                   tabs: const [
                     Tab(
                       child: Row(
@@ -317,13 +411,28 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
         ),
       ),
       body: AnimatedBuilder(
-        animation: _service,
+        animation: Listenable.merge([_leagueService, _leaderboardService]),
         builder: (context, _) {
-          return TabBarView(
-            controller: _tabController,
+          return Column(
             children: [
-              _buildTeamsTab(),
-              _buildPlayersTab(),
+              if (!_isLeagueSpecific)
+                RankingSourceSelector(
+                  selected: _source,
+                  onChanged: _onSourceChanged,
+                ),
+              RankingSearchField(
+                controller: _searchController,
+                query: _searchQuery,
+              ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildTeamsTab(),
+                    _buildPlayersTab(),
+                  ],
+                ),
+              ),
             ],
           );
         },
@@ -331,31 +440,83 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
     );
   }
 
+  List<TeamStats> _resolveTeams() {
+    final List<TeamStats> base;
+    if (!_isServerMode) {
+      base = _leaderboardService.teamsRanked;
+    } else if (_isFromServer) {
+      base = _serverTeams;
+    } else if (widget.leagueId != null) {
+      base = _leagueService.getLeague(widget.leagueId!)?.getTeamsRankedForMonth(
+                year: _selectedMonth?.year,
+                month: _selectedMonth?.month,
+              ) ??
+          const [];
+    } else {
+      base = _leagueService.getGlobalTeamsRanked(
+        year: _selectedMonth?.year,
+        month: _selectedMonth?.month,
+      );
+    }
+
+    if (_searchQuery.isEmpty) return base;
+    return base.where((t) {
+      final matchDisplay = t.displayName.toLowerCase().contains(_searchQuery);
+      final matchMembers =
+          t.members.any((m) => m.toLowerCase().contains(_searchQuery));
+      return matchDisplay || matchMembers;
+    }).toList();
+  }
+
+  List<PlayerStats> _resolvePlayers() {
+    final List<PlayerStats> base;
+    if (!_isServerMode) {
+      base = _leaderboardService.playersRanked;
+    } else if (_isFromServer) {
+      base = _serverPlayers;
+    } else if (widget.leagueId != null) {
+      base =
+          _leagueService.getLeague(widget.leagueId!)?.getPlayersRankedForMonth(
+                    year: _selectedMonth?.year,
+                    month: _selectedMonth?.month,
+                  ) ??
+              const [];
+    } else {
+      base = _leagueService.getGlobalPlayersRanked(
+        year: _selectedMonth?.year,
+        month: _selectedMonth?.month,
+      );
+    }
+
+    if (_searchQuery.isEmpty) return base;
+    return base
+        .where((p) => p.name.toLowerCase().contains(_searchQuery))
+        .toList();
+  }
+
   Widget _buildTeamsTab() {
-    if (_isLoadingServer) {
+    if (_isServerMode && _isLoadingServer) {
       return const Center(
         child: CircularProgressIndicator(color: AppColors.emerald400),
       );
     }
 
-    final teams = _isFromServer
-        ? _serverTeams
-        : (widget.leagueId != null
-            ? (_service.getLeague(widget.leagueId!)?.getTeamsRankedForMonth(
-                      year: _selectedMonth?.year,
-                      month: _selectedMonth?.month,
-                    ) ??
-                [])
-            : _service.getGlobalTeamsRanked(
-                year: _selectedMonth?.year,
-                month: _selectedMonth?.month,
-              ));
+    final teams = _resolveTeams();
 
     if (teams.isEmpty) {
+      if (_searchQuery.isNotEmpty) {
+        return Center(
+          child: Text(
+            'No se encontraron equipos con "$_searchQuery"',
+            style: const TextStyle(color: AppColors.slate400, fontSize: 13),
+            textAlign: TextAlign.center,
+          ),
+        );
+      }
       return RankingEmptyState(
         isTeams: true,
-        periodText: _currentPeriodText(),
-        showResetButton: _selectedMonth != null,
+        periodText: _isServerMode ? _currentPeriodText() : 'este dispositivo',
+        showResetButton: _isServerMode && _selectedMonth != null,
         onResetToAllTime: () => _selectMonth(null),
       );
     }
@@ -391,8 +552,10 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
               ),
               Text(
                 '•  ${t.totalPoints} pts',
-                style:
-                    const TextStyle(fontSize: 11, color: AppColors.emerald400),
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.emerald400,
+                ),
               ),
             ],
           ),
@@ -407,30 +570,28 @@ class _GlobalRankingScreenState extends State<GlobalRankingScreen>
   }
 
   Widget _buildPlayersTab() {
-    if (_isLoadingServer) {
+    if (_isServerMode && _isLoadingServer) {
       return const Center(
         child: CircularProgressIndicator(color: AppColors.emerald400),
       );
     }
 
-    final players = _isFromServer
-        ? _serverPlayers
-        : (widget.leagueId != null
-            ? (_service.getLeague(widget.leagueId!)?.getPlayersRankedForMonth(
-                      year: _selectedMonth?.year,
-                      month: _selectedMonth?.month,
-                    ) ??
-                [])
-            : _service.getGlobalPlayersRanked(
-                year: _selectedMonth?.year,
-                month: _selectedMonth?.month,
-              ));
+    final players = _resolvePlayers();
 
     if (players.isEmpty) {
+      if (_searchQuery.isNotEmpty) {
+        return Center(
+          child: Text(
+            'No se encontraron jugadores con "$_searchQuery"',
+            style: const TextStyle(color: AppColors.slate400, fontSize: 13),
+            textAlign: TextAlign.center,
+          ),
+        );
+      }
       return RankingEmptyState(
         isTeams: false,
-        periodText: _currentPeriodText(),
-        showResetButton: _selectedMonth != null,
+        periodText: _isServerMode ? _currentPeriodText() : 'este dispositivo',
+        showResetButton: _isServerMode && _selectedMonth != null,
         onResetToAllTime: () => _selectMonth(null),
       );
     }
