@@ -1,3 +1,5 @@
+const { sendApiError } = require("../utils/problemDetails");
+
 /**
  * Limitador de intentos en memoria con tope acotado de claves (anti-OOM).
  *
@@ -51,9 +53,11 @@ function rateLimit({
         Math.ceil((list[0] + windowMs - now) / 1000)
       );
       res.set("Retry-After", String(retryAfterSeconds));
-      return res
-        .status(429)
-        .json({ success: false, error: message, retryAfterSeconds });
+      return sendApiError(req, res, {
+        status: 429,
+        detail: message,
+        extensions: { retryAfterSeconds },
+      });
     }
 
     if (countOnlyStatus === null) {

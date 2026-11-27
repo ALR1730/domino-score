@@ -1,6 +1,7 @@
 name: Domino Score Backend CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [ "main" ]
     paths:
@@ -16,6 +17,17 @@ jobs:
   test:
     name: Test Node.js API
     runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' || exit 1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
 
     strategy:
       matrix:
@@ -44,6 +56,8 @@ jobs:
           npm audit --omit=dev --audit-level=high
 
       - name: Run automated test suite
+        env:
+          MONGODB_TEST_URI: mongodb://127.0.0.1:27017/domino_score_ci_test
         run: |
           cd backend
           npm test

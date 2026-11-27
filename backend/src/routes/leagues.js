@@ -1,9 +1,10 @@
 const express = require("express");
 const router = express.Router();
-const store = require("../models/store");
+const leagueService = require("../services/leagueService");
 const rateLimit = require("../middleware/rateLimit");
 const asyncHandler = require("../middleware/asyncHandler");
 const { generateRandomPin } = require("../utils/pin");
+const { sendApiError } = require("../utils/problemDetails");
 const {
   MAX_PARTICIPANT_LEN,
   cleanString,
@@ -56,10 +57,13 @@ const toSafeLeague = (league) => {
 };
 
 // GET /api/leagues - Lista pública de ligas (sin PIN)
-router.get("/", (req, res) => {
-  const leagues = store.getAllLeaguesPublic();
-  res.json({ success: true, leagues });
-});
+router.get(
+  "/",
+  asyncHandler(async (req, res) => {
+    const leagues = await leagueService.getAllLeaguesPublic();
+    res.json({ success: true, leagues });
+  })
+);
 
 // POST /api/leagues - Crear nueva liga
 router.post(
@@ -68,12 +72,15 @@ router.post(
   asyncHandler(async (req, res) => {
     const parsed = validateCreateLeague(req.body);
     if (!parsed.ok) {
-      return res.status(parsed.status).json({ success: false, error: parsed.error });
+      return sendApiError(req, res, {
+        status: parsed.status,
+        detail: parsed.error,
+      });
     }
 
     const requestedPin = parsed.data.pin || generateRandomPin();
 
-    const league = await store.createLeague({
+    const league = await leagueService.createLeague({
       id: parsed.data.id,
       name: parsed.data.name,
       pin: requestedPin,
@@ -97,30 +104,34 @@ router.post(
   asyncHandler(async (req, res) => {
     const parsed = validateSyncPayload(req.body);
     if (!parsed.ok) {
-      return res.status(parsed.status).json({ success: false, error: parsed.error });
+      return sendApiError(req, res, {
+        status: parsed.status,
+        detail: parsed.error,
+      });
     }
 
-    const existing = store.getLeagueById(parsed.data.id);
+    const existing = await leagueService.getLeagueById(parsed.data.id);
     if (existing) {
-      if (!(await store.verifyLeaguePin(existing, parsed.data.pin))) {
-        return res.status(401).json({
-          success: false,
-          error:
+      if (!(await leagueService.verifyLeaguePin(existing, parsed.data.pin))) {
+        return sendApiError(req, res, {
+          status: 401,
+          detail:
             "PIN incorrecto para sincronizar la liga. Verifica la clave de acceso.",
         });
       }
     } else if (!parsed.data.pin) {
-      return res.status(401).json({
-        success: false,
-        error: "Se requiere un PIN para crear la liga al sincronizar.",
+      return sendApiError(req, res, {
+        status: 401,
+        detail: "Se requiere un PIN para crear la liga al sincronizar.",
       });
     }
 
-    const league = await store.syncLeague(parsed.data);
+    const league = await leagueService.syncLeague(parsed.data);
     if (!league) {
-      return res
-        .status(500)
-        .json({ success: false, error: "No se pudo sincronizar la liga." });
+      return sendApiError(req, res, {
+        status: 500,
+        detail: "No se pudo sincronizar la liga.",
+      });
     }
 
     res.json({ success: true, league: toSafeLeague(league) });
@@ -135,24 +146,30 @@ router.post(
   asyncHandler(async (req, res) => {
     const parsed = validateJoin(req.body);
     if (!parsed.ok) {
-      return res.status(parsed.status).json({ success: false, error: parsed.error });
-    }
-
-    const league = store.findLeagueByNameOrId(parsed.data.nameOrId);
-    if (!league) {
-      return res.status(404).json({
-        success: false,
-        error: "Liga no encontrada con el nombre o código ingresado.",
+      return sendApiError(req, res, {
+        status: parsed.status,
+        detail: parsed.error,
       });
     }
 
-    if (!(await store.verifyLeaguePin(league, parsed.data.pin))) {
-      return res
-        .status(401)
-        .json({ success: false, error: "Clave de acceso (PIN) incorrecta." });
+    const league = await leagueService.findLeagueByNameOrId(
+      parsed.data.nameOrId
+    );
+    if (!league) {
+      return sendApiError(req, res, {
+        status: 404,
+        detail: "Liga no encontrada con el nombre o código ingresado.",
+      });
     }
 
-    const current = store.getLeagueById(league.id) || league;
+    if (!(await leagueService.verifyLeaguePin(league, parsed.data.pin))) {
+      return sendApiError(req, res, {
+        status: 401,
+        detail: "Clave de acceso (PIN) incorrecta.",
+      });
+    }
+
+    const current = (await leagueService.getLeagueById(league.id)) || league;
     res.json({
       success: true,
       league: { ...toSafeLeague(current), pin: parsed.data.pin },
@@ -161,18 +178,27 @@ router.post(
 );
 
 // GET /api/leagues/:id - Obtener liga con participantes y rankings (sin PIN)
-router.get("/:id", (req, res) => {
-  const idCheck = validateLeagueId(req.params.id);
-  if (!idCheck.ok) {
-    return res.status(idCheck.status).json({ success: false, error: idCheck.error });
-  }
+router.get(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const idCheck = validateLeagueId(req.params.id);
+    if (!idCheck.ok) {
+      return sendApiError(req, res, {
+        status: idCheck.status,
+        detail: idCheck.error,
+      });
+    }
 
-  const league = store.getLeagueById(idCheck.data);
-  if (!league) {
-    return res.status(404).json({ success: false, error: "Liga no encontrada." });
-  }
-  res.json({ success: true, league: toSafeLeague(league) });
-});
+    const league = await leagueService.getLeagueById(idCheck.data);
+    if (!league) {
+      return sendApiError(req, res, {
+        status: 404,
+        detail: "Liga no encontrada.",
+      });
+    }
+    res.json({ success: true, league: toSafeLeague(league) });
+  })
+);
 
 function extractPinForDelete(req, routeLabel) {
   const bodyPin = req.body && req.body.pin;
@@ -191,20 +217,27 @@ const handleDelete = asyncHandler(async (req, res) => {
     req.params.id !== undefined ? req.params.id : req.body && req.body.id;
   const idCheck = validateLeagueId(rawId);
   if (!idCheck.ok) {
-    return res
-      .status(400)
-      .json({ success: false, error: "ID de la liga es requerido." });
+    return sendApiError(req, res, {
+      status: 400,
+      detail: "ID de la liga es requerido.",
+    });
   }
 
   const pinCheck = extractPinForDelete(req, "DELETE /api/leagues");
   if (!pinCheck.ok) {
-    return res.status(pinCheck.status).json({ success: false, error: pinCheck.error });
+    return sendApiError(req, res, {
+      status: pinCheck.status,
+      detail: pinCheck.error,
+    });
   }
 
-  const result = await store.deleteLeague(idCheck.data, pinCheck.data);
+  const result = await leagueService.deleteLeague(idCheck.data, pinCheck.data);
   if (!result.success) {
     const isNotFound = result.error && result.error.includes("no encontrada");
-    return res.status(isNotFound ? 404 : 401).json(result);
+    return sendApiError(req, res, {
+      status: isNotFound ? 404 : 401,
+      detail: result.error,
+    });
   }
   res.json({ success: true, message: "Liga eliminada correctamente." });
 });
@@ -225,23 +258,38 @@ router.post(
   asyncHandler(async (req, res) => {
     const idCheck = validateLeagueId(req.params.id);
     if (!idCheck.ok) {
-      return res.status(idCheck.status).json({ success: false, error: idCheck.error });
+      return sendApiError(req, res, {
+        status: idCheck.status,
+        detail: idCheck.error,
+      });
     }
 
     const parsed = validateParticipant(req.body);
     if (!parsed.ok) {
-      return res.status(parsed.status).json({ success: false, error: parsed.error });
+      return sendApiError(req, res, {
+        status: parsed.status,
+        detail: parsed.error,
+      });
     }
 
-    const league = store.getLeagueById(idCheck.data);
+    const league = await leagueService.getLeagueById(idCheck.data);
     if (!league) {
-      return res.status(404).json({ success: false, error: "Liga no encontrada." });
+      return sendApiError(req, res, {
+        status: 404,
+        detail: "Liga no encontrada.",
+      });
     }
-    if (!(await store.verifyLeaguePin(league, parsed.data.pin))) {
-      return res.status(401).json({ success: false, error: "PIN incorrecto." });
+    if (!(await leagueService.verifyLeaguePin(league, parsed.data.pin))) {
+      return sendApiError(req, res, {
+        status: 401,
+        detail: "PIN incorrecto.",
+      });
     }
 
-    const updated = await store.addParticipant(idCheck.data, parsed.data.name);
+    const updated = await leagueService.addParticipant(
+      idCheck.data,
+      parsed.data.name
+    );
     res.json({ success: true, participants: updated.participants });
   })
 );
@@ -253,7 +301,10 @@ router.delete(
   asyncHandler(async (req, res) => {
     const idCheck = validateLeagueId(req.params.id);
     if (!idCheck.ok) {
-      return res.status(idCheck.status).json({ success: false, error: idCheck.error });
+      return sendApiError(req, res, {
+        status: idCheck.status,
+        detail: idCheck.error,
+      });
     }
 
     const nameCheck = cleanString(req.params.name, {
@@ -263,7 +314,10 @@ router.delete(
       label: "Nombre de participante",
     });
     if (!nameCheck.ok) {
-      return res.status(nameCheck.status).json({ success: false, error: nameCheck.error });
+      return sendApiError(req, res, {
+        status: nameCheck.status,
+        detail: nameCheck.error,
+      });
     }
 
     const pinCheck = extractPinForDelete(
@@ -271,18 +325,30 @@ router.delete(
       "DELETE /api/leagues/:id/participants"
     );
     if (!pinCheck.ok) {
-      return res.status(pinCheck.status).json({ success: false, error: pinCheck.error });
+      return sendApiError(req, res, {
+        status: pinCheck.status,
+        detail: pinCheck.error,
+      });
     }
 
-    const league = store.getLeagueById(idCheck.data);
+    const league = await leagueService.getLeagueById(idCheck.data);
     if (!league) {
-      return res.status(404).json({ success: false, error: "Liga no encontrada." });
+      return sendApiError(req, res, {
+        status: 404,
+        detail: "Liga no encontrada.",
+      });
     }
-    if (!(await store.verifyLeaguePin(league, pinCheck.data))) {
-      return res.status(401).json({ success: false, error: "PIN incorrecto." });
+    if (!(await leagueService.verifyLeaguePin(league, pinCheck.data))) {
+      return sendApiError(req, res, {
+        status: 401,
+        detail: "PIN incorrecto.",
+      });
     }
 
-    const updated = await store.removeParticipant(idCheck.data, nameCheck.value);
+    const updated = await leagueService.removeParticipant(
+      idCheck.data,
+      nameCheck.value
+    );
     res.json({ success: true, participants: updated.participants });
   })
 );
@@ -295,41 +361,50 @@ router.post(
   asyncHandler(async (req, res) => {
     const idCheck = validateLeagueId(req.params.id);
     if (!idCheck.ok) {
-      return res.status(idCheck.status).json({ success: false, error: idCheck.error });
+      return sendApiError(req, res, {
+        status: idCheck.status,
+        detail: idCheck.error,
+      });
     }
 
     const parsed = validateMatchPayload(req.body);
     if (!parsed.ok) {
-      return res.status(parsed.status).json({ success: false, error: parsed.error });
+      return sendApiError(req, res, {
+        status: parsed.status,
+        detail: parsed.error,
+      });
     }
 
     const pinCheck = validatePin(req.body && req.body.pin, { required: false });
     if (!pinCheck.ok) {
-      return res.status(pinCheck.status).json({ success: false, error: pinCheck.error });
-    }
-
-    const leagueId = idCheck.data;
-    const existing = store.getLeagueById(leagueId);
-    if (existing) {
-      if (!(await store.verifyLeaguePin(existing, pinCheck.data))) {
-        return res.status(401).json({
-          success: false,
-          error: "PIN incorrecto para registrar partidas en esta liga.",
-        });
-      }
-    } else if (!pinCheck.data) {
-      return res.status(401).json({
-        success: false,
-        error: "Se requiere un PIN para crear la liga al registrar la partida.",
+      return sendApiError(req, res, {
+        status: pinCheck.status,
+        detail: pinCheck.error,
       });
     }
 
-    const match = await store.recordMatch(leagueId, {
+    const leagueId = idCheck.data;
+    const existing = await leagueService.getLeagueById(leagueId);
+    if (existing) {
+      if (!(await leagueService.verifyLeaguePin(existing, pinCheck.data))) {
+        return sendApiError(req, res, {
+          status: 401,
+          detail: "PIN incorrecto para registrar partidas en esta liga.",
+        });
+      }
+    } else if (!pinCheck.data) {
+      return sendApiError(req, res, {
+        status: 401,
+        detail: "Se requiere un PIN para crear la liga al registrar la partida.",
+      });
+    }
+
+    const match = await leagueService.recordMatch(leagueId, {
       ...parsed.data,
       pin: pinCheck.data,
     });
 
-    const league = store.getLeagueById(leagueId);
+    const league = await leagueService.getLeagueById(leagueId);
     res.status(201).json({ success: true, match, league: toSafeLeague(league) });
   })
 );

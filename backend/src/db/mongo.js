@@ -42,6 +42,7 @@ class MongoDB {
       const leaguesCol = this.db.collection("leagues");
       await leaguesCol.createIndex({ name: 1 });
       await leaguesCol.createIndex({ updatedAt: -1 });
+      await leaguesCol.createIndex({ "matches.id": 1 });
     } catch (err) {
       console.warn("Aviso al crear índices en MongoDB:", err.message);
     }
