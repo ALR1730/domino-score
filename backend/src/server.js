@@ -2,10 +2,11 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const mongo = require("./db/mongo");
-const store = require("./models/store");
+const leagueService = require("./services/leagueService");
 const leaguesRouter = require("./routes/leagues");
 const rankingsRouter = require("./routes/rankings");
 const { createShutdownHandler } = require("./utils/shutdown");
+const { sendApiError } = require("./utils/problemDetails");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -59,26 +60,34 @@ app.get("/health", (req, res) => {
   res.json({
     status: "ok",
     service: "domino-score-backend",
-    version: "1.3.0",
+    version: "1.4.0",
     database: mongo.connected ? "mongodb" : "local_storage",
     timestamp: new Date().toISOString(),
   });
 });
 
-// Rutas de API
+// Rutas de API: alias retrocompatible (/api/*) + versión estándar RFC 7807 (/api/v1/*)
 app.use("/api/leagues", leaguesRouter);
 app.use("/api/rankings", rankingsRouter);
+app.use("/api/v1/leagues", leaguesRouter);
+app.use("/api/v1/rankings", rankingsRouter);
 
 // Manejador de 404
 app.use((req, res) => {
-  res.status(404).json({ success: false, error: "Endpoint no encontrado" });
+  return sendApiError(req, res, {
+    status: 404,
+    detail: "Endpoint no encontrado",
+  });
 });
 
 // Manejador global de errores: ningún 500 devuelve HTML con stack trace
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error("Error no controlado:", err);
-  res.status(500).json({ success: false, error: "Error interno del servidor." });
+  return sendApiError(req, res, {
+    status: 500,
+    detail: "Error interno del servidor.",
+  });
 });
 
 // Inicialización de base de datos y servidor
@@ -87,7 +96,7 @@ async function startServer() {
     console.log("🔄 Conectando a MongoDB...");
     const connected = await mongo.connect();
     if (connected) {
-      await store.loadFromMongo();
+      await leagueService.initializeStorage();
     } else if (process.env.ALLOW_LOCAL_FALLBACK === "true") {
       // Única forma de arrancar sin BD con MONGODB_URI configurado.
       console.warn(
@@ -110,6 +119,7 @@ async function startServer() {
     console.log(`🚀 Dominó Score Backend escuchando en http://0.0.0.0:${PORT}`);
     console.log(`📋 Healthcheck: http://localhost:${PORT}/health`);
     console.log(`🏆 Ligas API: http://localhost:${PORT}/api/leagues`);
+    console.log(`🏆 Ligas API v1: http://localhost:${PORT}/api/v1/leagues`);
   });
 
   const shutdown = createShutdownHandler({

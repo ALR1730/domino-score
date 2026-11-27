@@ -40,7 +40,7 @@ Todo cambio en este plan debe respetar las siguientes reglas para **no corromper
 | **P0-C** | **Fase 2** ✅ Completada | Corrección de bugs silenciosos en Flutter (pérdida de partidas, Casual, GlobalRanking, race conditions) | Bajo | No |
 | **P1** | **Fase 3** ✅ Completada | Sincronización de participantes, eficiencia de red, pulido móvil/web y CI sin falsos verdes | Bajo | No |
 | **P1/P2** | **Fase 4** | Migración de PINs a `scrypt` (`pinHash`) en MongoDB Atlas (Expand → Dual-Read → Migrate) | Medio (controlado con backup) | **Sí (aprobación explícita)** |
-| **P2** | **Fase 5** | Refactorización arquitectónica gradual (BETA, dividir pantallas, repositorios Mongo directos) | Medio | No (índices aditivos) |
+| **P2** | **Fase 5** ✅ Completada | Refactorización arquitectónica gradual (BETA, dividir pantallas, repositorios Mongo directos) | Medio | No (índices aditivos) |
 
 ---
 
@@ -220,20 +220,20 @@ Todo cambio en este plan debe respetar las siguientes reglas para **no corromper
 
 ---
 
-## FASE 5 (P2) — Refactorización Arquitectónica Gradual (Regla BETA y Escalabilidad)
+## FASE 5 (P2) — Refactorización Arquitectónica Gradual (Regla BETA y Escalabilidad) ✅ Completada
 
 **Por qué al final:** Con producción segura, libre de bugs críticos y con suites TDD robustas, se paga la deuda estructural sin riesgo de regresiones.
 
 ### Alcance (dividido en PRs pequeños e independientes)
-1. **Flutter — Descomposición de pantallas monolíticas (SRP) *(PR 5A completado, consolidación pendiente)*:**
+1. **Flutter — Descomposición de pantallas monolíticas (SRP) *(PR #6 y PR #7 ✅ Completados)*:**
    - ✅ Extraídos widgets cohesivos de `league_home_screen.dart`, `league_manager_screen.dart`, `global_ranking_screen.dart` y `league_dialogs.dart` bajo `lib/widgets/league/` y `lib/widgets/league_dialogs/`.
-   - Consolidar `LeaderboardScreen` y `GlobalRankingScreen` en una sola pantalla de clasificaciones coherente (tab Dispositivo vs Servidor + selector mensual).
-2. **Flutter — Inversión de dependencias (Regla BETA):**
-   - Definir contratos `ILeagueRepository` / `ILeaderboardRepository` en `Domain`/`Application`, mover `SharedPreferences` y `ApiClient` a `Infrastructure`, eliminar llamadas directas de `screens/` a `ApiClient` y retirar `resetForTesting()` al soportar DI en tests.
-3. **Backend — Persistencia directa en MongoDB + Contratos estándar ALR:**
-   - Dividir `store.js` (God Object) en `LeagueRepository` (consultas/actualizaciones atómicas `$push`/`$set` directas en MongoDB sin depender de tener toda la BD en RAM → habilita escalado horizontal) y `LeagueService`.
-   - Mantener `/api/*` como alias retrocompatible mientras se introducen rutas versionadas `/api/v1/*` con formato de error RFC 7807 (`ProblemDetails`).
-   - Añadir suite de integración con MongoDB en CI (contenedor `mongo:7` en `backend-ci.yml`).
+   - ✅ Consolidados `LeaderboardScreen` y `GlobalRankingScreen` en una sola pantalla de clasificaciones coherente (`En este Dispositivo` vs `En el Servidor` + selector mensual).
+2. **Flutter — Inversión de dependencias (Regla BETA) *(PR #7 ✅ Completado)*:**
+   - ✅ Definidos contratos `ILeagueRepository` / `ILeaderboardRepository` en `Domain`/`Application`, movidos `SharedPreferences` y `ApiClient` a `Infrastructure`, eliminadas llamadas directas de `screens/` a `ApiClient` y retirado `resetForTesting()` al soportar DI en tests.
+3. **Backend — Persistencia directa en MongoDB + Contratos estándar ALR *(PR #8 ✅ Completado)*:**
+   - ✅ Dividido `store.js` en `LeagueRepository` (consultas/actualizaciones atómicas `$addToSet`/`$pullAll`/`$push`/`$inc`/`$unset` directas en MongoDB sin depender de tener toda la BD en RAM → habilita escalado horizontal) y `LeagueService`.
+   - ✅ Mantenido `/api/*` como alias retrocompatible mientras se introducen rutas versionadas `/api/v1/*` con formato de error RFC 7807 (`ProblemDetails`).
+   - ✅ Añadida suite de integración con MongoDB en CI (contenedor `mongo:7` y `workflow_dispatch` en `backend-ci.yml`).
 
 ---
 

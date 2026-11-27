@@ -159,5 +159,18 @@
 - Refactorización de `global_ranking_screen.dart`, `league_home_screen.dart` y `league_manager_screen.dart` hacia orquestación de estado y composición limpia (SRP), preservando contratos, claves `ValueKey`, polling de `45s`, `tzOffsetMinutes` y textos de UI.
 - Cobertura de pruebas unitarias/widget para los componentes extraídos en `test/league_widgets_test.dart`.
 
+## Fase 5B (P2) — Inversión de Dependencias (Regla BETA) y Consolidación de Rankings en Flutter (PR #7)
+- Creación de contratos puros en `lib/domain/repositories/` (`ILeagueRepository` e `ILeaderboardRepository`) con cero dependencias de Flutter, HTTP ni `SharedPreferences`.
+- Traslado de `ApiClient` a `lib/infrastructure/network/api_client.dart` (con barrel en `lib/services/api_client.dart`) e implementación de `LeagueRepositoryImpl` y `LeaderboardRepositoryImpl` en `lib/infrastructure/repositories/` conservando las claves locales vigentes.
+- Inyección de dependencias en `LeagueService` / `LeaderboardService` (`withRepository`, `isolated`), eliminación de `resetForTesting()` y retiro de imports directos de `ApiClient` en `screens/` y `widgets/`.
+- Consolidación de `LeaderboardScreen` y `GlobalRankingScreen` en una vista coherente (`En este Dispositivo` vs `En el Servidor`, búsqueda, filtro mensual `tzOffsetMinutes` y diálogo de reinicio) con cobertura en `test/architecture_and_rankings_test.dart`.
+
+## Fase 5C (P2) — Persistencia Atómica en MongoDB, API `/api/v1` (RFC 7807) y CI `mongo:7` (PR #8)
+- Índice aditivo `{ "matches.id": 1 }` en `backend/src/db/mongo.js`.
+- División de `backend/src/models/store.js` en `LeagueRepository` (`backend/src/repositories/leagueRepository.js` con consultas directas y operadores atómicos `$addToSet`, `$pullAll`, `$push`, `$inc`, `$unset` sin depender de cargar toda la BD en RAM) y `LeagueService` (`backend/src/services/leagueService.js`), manteniendo `store.js` como fachada retrocompatible.
+- Introducción de `/api/v1/leagues/*` y `/api/v1/rankings/*` con formato de error RFC 7807 `application/problem+json` (`backend/src/utils/problemDetails.js`), preservando `/api/*` como alias retrocompatible sin ruptura para clientes existentes.
+- Cobertura en `backend/test/v1-and-repository.test.js` y `backend/test/mongo-integration.test.js`, más servicio `mongo:7` y `workflow_dispatch` en `.github/workflows/backend-ci.yml`.
+
+
 
 
