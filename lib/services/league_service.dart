@@ -1,25 +1,28 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../domain/repositories/league_repository.dart';
+import '../infrastructure/repositories/league_repository_impl.dart';
 import '../models/leaderboard_entry.dart';
 import '../models/league.dart';
-import 'api_client.dart';
 import 'ranking_calculator.dart';
 
 class LeagueService extends ChangeNotifier {
-  static final LeagueService _instance = LeagueService._internal();
+  static final LeagueService _instance =
+      LeagueService.withRepository(LeagueRepositoryImpl());
   factory LeagueService() => _instance;
-  LeagueService._internal() {
+
+  LeagueService.withRepository(this._repository) {
     _loadFuture = loadData();
   }
 
-  static const String _leaguesPrefKey = 'domino_leagues_registry_v1';
-  static const String _activeLeaguePrefKey = 'domino_active_league_id_v1';
+  factory LeagueService.isolated({ILeagueRepository? repository}) {
+    return LeagueService.withRepository(repository ?? LeagueRepositoryImpl());
+  }
 
+  final ILeagueRepository _repository;
   final Map<String, League> _leagues = {};
   final Set<String> _pendingSyncLeagueIds = {};
   late Future<void> _loadFuture;
@@ -55,16 +58,42 @@ class LeagueService extends ChangeNotifier {
     return pin;
   }
 
-  /// Solo para tests: vacía el estado en memoria y recarga desde prefs.
-  @visibleForTesting
-  Future<void> resetForTesting() async {
-    _leagues.clear();
-    _pendingSyncLeagueIds.clear();
-    _activeLeagueId = null;
-    _isLoaded = false;
-    _isSyncingServer = false;
-    _loadFuture = loadData();
-    await _loadFuture;
+  // --- Operaciones remotas delegadas al repositorio ---
+
+  Future<bool> isServerAvailable() => _repository.isServerAvailable();
+
+  Future<List<Map<String, dynamic>>?> fetchServerLeagues() =>
+      _repository.fetchServerLeagues();
+
+  Future<String?> deleteServerLeague(String id, {required String pin}) async {
+    final res = await _repository.deleteRemoteLeague(id, pin: pin.trim());
+    if (!res.success) {
+      return res.error ?? 'PIN incorrecto o error al eliminar';
+    }
+    // Quitar también la copia local (si existe) sin repetir la llamada al server
+    await deleteLeague(id, deleteOnServer: false);
+    return null;
+  }
+
+  Future<RankingSnapshot?> fetchRankings({
+    String? leagueId,
+    int? year,
+    int? month,
+    int? tzOffsetMinutes,
+  }) {
+    if (leagueId != null) {
+      return _repository.fetchLeagueRankings(
+        leagueId,
+        year: year,
+        month: month,
+        tzOffsetMinutes: tzOffsetMinutes,
+      );
+    }
+    return _repository.fetchGlobalRankings(
+      year: year,
+      month: month,
+      tzOffsetMinutes: tzOffsetMinutes,
+    );
   }
 
   // --- Operaciones de Liga ---
@@ -112,7 +141,7 @@ class LeagueService extends ChangeNotifier {
 
     // Intentar registrar en el servidor REST con timeout resiliente
     try {
-      final serverLeague = await ApiClient().createLeague(
+      final serverLeague = await _repository.createRemoteLeague(
         id: league.id,
         name: league.name,
         pin: league.pin,
@@ -128,12 +157,14 @@ class LeagueService extends ChangeNotifier {
     } catch (_) {}
 
     // Eliminar cualquier duplicado accidental previo con el mismo nombre y PIN sin partidas
-    _leagues.removeWhere((key, existing) =>
-        existing.id != league.id &&
-        existing.name.trim().toLowerCase() ==
-            league.name.trim().toLowerCase() &&
-        existing.pin.trim() == league.pin.trim() &&
-        existing.matches.isEmpty);
+    _leagues.removeWhere(
+      (key, existing) =>
+          existing.id != league.id &&
+          existing.name.trim().toLowerCase() ==
+              league.name.trim().toLowerCase() &&
+          existing.pin.trim() == league.pin.trim() &&
+          existing.matches.isEmpty,
+    );
 
     _leagues[league.id] = league;
     _activeLeagueId = league.id;
@@ -174,18 +205,21 @@ class LeagueService extends ChangeNotifier {
 
     // Si no está en caché local, intentar consultar al servidor REST
     try {
-      final res = await ApiClient().joinLeague(nameOrId: nameOrId, pin: pin);
-      if (res['success'] == true && res['league'] is League) {
-        final serverLeague = res['league'] as League;
+      final res = await _repository.joinRemoteLeague(
+        nameOrId: nameOrId,
+        pin: pin,
+      );
+      if (res.league != null) {
+        final serverLeague = res.league!;
         _leagues[serverLeague.id] = serverLeague;
         _activeLeagueId = serverLeague.id;
         await _saveData();
         notifyListeners();
         return null; // éxito servidor
-      } else if (res['isConnectionError'] == true) {
+      } else if (res.isConnectionError) {
         return 'No se encontró la liga "$nameOrId" en este dispositivo.\n(Tip: prueba buscando por su código exacto ej. LIG-9872)';
-      } else if (res['error'] != null) {
-        return res['error'].toString();
+      } else if (res.error != null) {
+        return res.error!;
       }
     } catch (_) {}
 
@@ -200,14 +234,17 @@ class LeagueService extends ChangeNotifier {
   }
 
   /// Elimina una liga del dispositivo y opcionalmente del servidor si se provee el PIN
-  Future<String?> deleteLeague(String id,
-      {String? pin, bool deleteOnServer = true}) async {
+  Future<String?> deleteLeague(
+    String id, {
+    String? pin,
+    bool deleteOnServer = true,
+  }) async {
     await ensureLoaded();
 
     if (deleteOnServer && pin != null && pin.trim().isNotEmpty) {
-      final res = await ApiClient().deleteLeague(id, pin: pin.trim());
-      if (res['success'] != true) {
-        return res['error'] ?? 'Error al eliminar la liga en el servidor.';
+      final res = await _repository.deleteRemoteLeague(id, pin: pin.trim());
+      if (!res.success) {
+        return res.error ?? 'Error al eliminar la liga en el servidor.';
       }
     }
 
@@ -238,7 +275,7 @@ class LeagueService extends ChangeNotifier {
 
   Future<void> _syncAddParticipantToServer(League league, String name) async {
     try {
-      final serverParticipants = await ApiClient().addParticipant(
+      final serverParticipants = await _repository.addRemoteParticipant(
         leagueId: league.id,
         name: name,
         pin: league.pin,
@@ -284,9 +321,11 @@ class LeagueService extends ChangeNotifier {
   }
 
   Future<void> _syncRemoveParticipantToServer(
-      League league, String name) async {
+    League league,
+    String name,
+  ) async {
     try {
-      await ApiClient().removeParticipant(
+      await _repository.removeRemoteParticipant(
         leagueId: league.id,
         name: name,
         pin: league.pin,
@@ -314,7 +353,7 @@ class LeagueService extends ChangeNotifier {
     // 1. Guardar la partida localmente PRIMERO (operación síncrona en memoria)
     league.recordMatch(match);
 
-    // 2. Persistir en SharedPreferences inmediatamente
+    // 2. Persistir inmediatamente en almacenamiento local
     await _saveData();
     notifyListeners();
 
@@ -374,7 +413,7 @@ class LeagueService extends ChangeNotifier {
     _isSyncingServer = true;
     var sent = false;
     try {
-      sent = await ApiClient().recordMatch(
+      sent = await _repository.recordRemoteMatch(
         leagueId: league.id,
         match: match,
         leagueName: league.name,
@@ -404,8 +443,8 @@ class LeagueService extends ChangeNotifier {
     _isSyncingServer = true;
     var ok = false;
     try {
-      League? serverLeague = await ApiClient().syncLeague(league);
-      serverLeague ??= await ApiClient().fetchLeague(league.id);
+      League? serverLeague = await _repository.syncRemoteLeague(league);
+      serverLeague ??= await _repository.fetchRemoteLeague(league.id);
 
       if (serverLeague != null) {
         final mergedAny = _mergeServerLeagueInto(league, serverLeague);
@@ -443,7 +482,7 @@ class LeagueService extends ChangeNotifier {
       final snapshot = List<League>.of(_leagues.values);
       var mergedAny = false;
       for (final league in snapshot) {
-        final serverLeague = await ApiClient().syncLeague(league);
+        final serverLeague = await _repository.syncRemoteLeague(league);
         if (serverLeague == null) {
           allSucceeded = false;
           continue;
@@ -520,51 +559,44 @@ class LeagueService extends ChangeNotifier {
     return RankingCalculator.sortPlayers(aggregate.values);
   }
 
-  // --- Persistencia con SharedPreferences ---
+  // --- Persistencia delegada al repositorio ---
 
   Future<void> loadData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      _activeLeagueId = prefs.getString(_activeLeaguePrefKey);
+      final state = await _repository.loadLocalState();
+      _activeLeagueId = state.activeLeagueId;
+      _leagues.clear();
+      for (final league in state.leagues) {
+        league.sortMatchesByDate();
+        _leagues[league.id] = league;
+      }
 
-      final jsonStr = prefs.getString(_leaguesPrefKey);
-      if (jsonStr != null) {
-        final decoded = jsonDecode(jsonStr) as List<dynamic>;
-        _leagues.clear();
-        for (final item in decoded) {
-          final l = League.fromMap(item as Map<String, dynamic>);
-          // Normaliza el orden persistido: más reciente primero.
-          l.sortMatchesByDate();
-          _leagues[l.id] = l;
-        }
-
-        // Limpieza automática de ligas duplicadas accidentales (mismo nombre y PIN con 0 partidas)
-        final seen = <String, String>{};
-        final toRemove = <String>[];
-        for (final l in _leagues.values) {
-          if (l.matches.isNotEmpty) continue;
-          final key = '${l.name.trim().toLowerCase()}__${l.pin.trim()}';
-          if (seen.containsKey(key)) {
-            final prevId = seen[key]!;
-            if (l.id == _activeLeagueId) {
-              toRemove.add(prevId);
-              seen[key] = l.id;
-            } else {
-              toRemove.add(l.id);
-            }
-          } else {
+      // Limpieza automática de ligas duplicadas accidentales (mismo nombre y PIN con 0 partidas)
+      final seen = <String, String>{};
+      final toRemove = <String>[];
+      for (final l in _leagues.values) {
+        if (l.matches.isNotEmpty) continue;
+        final key = '${l.name.trim().toLowerCase()}__${l.pin.trim()}';
+        if (seen.containsKey(key)) {
+          final prevId = seen[key]!;
+          if (l.id == _activeLeagueId) {
+            toRemove.add(prevId);
             seen[key] = l.id;
+          } else {
+            toRemove.add(l.id);
           }
+        } else {
+          seen[key] = l.id;
         }
-        for (final id in toRemove) {
-          _leagues.remove(id);
-        }
-        if (_activeLeagueId != null && !_leagues.containsKey(_activeLeagueId)) {
-          _activeLeagueId = _leagues.isNotEmpty ? _leagues.keys.first : null;
-        }
-        if (toRemove.isNotEmpty) {
-          await _saveData();
-        }
+      }
+      for (final id in toRemove) {
+        _leagues.remove(id);
+      }
+      if (_activeLeagueId != null && !_leagues.containsKey(_activeLeagueId)) {
+        _activeLeagueId = _leagues.isNotEmpty ? _leagues.keys.first : null;
+      }
+      if (toRemove.isNotEmpty) {
+        await _saveData();
       }
     } catch (e) {
       debugPrint('Error loading leagues: $e');
@@ -575,18 +607,9 @@ class LeagueService extends ChangeNotifier {
   }
 
   Future<void> _saveData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      if (_activeLeagueId != null) {
-        await prefs.setString(_activeLeaguePrefKey, _activeLeagueId!);
-      } else {
-        await prefs.remove(_activeLeaguePrefKey);
-      }
-
-      final leaguesList = _leagues.values.map((l) => l.toMap()).toList();
-      await prefs.setString(_leaguesPrefKey, jsonEncode(leaguesList));
-    } catch (e) {
-      debugPrint('Error saving leagues: $e');
-    }
+    await _repository.saveLocalState(
+      leagues: _leagues.values,
+      activeLeagueId: _activeLeagueId,
+    );
   }
 }

@@ -9,14 +9,20 @@ import '../domino_game_screen.dart';
 
 class MatchSetupScreen extends StatefulWidget {
   final League league;
+  final LeagueService? leagueService;
 
-  const MatchSetupScreen({super.key, required this.league});
+  const MatchSetupScreen({
+    super.key,
+    required this.league,
+    this.leagueService,
+  });
 
   @override
   State<MatchSetupScreen> createState() => _MatchSetupScreenState();
 }
 
 class _MatchSetupScreenState extends State<MatchSetupScreen> {
+  late final LeagueService _service = widget.leagueService ?? LeagueService();
   String? _team1Player1;
   String? _team1Player2;
   String? _team2Player1;
@@ -50,7 +56,7 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
     final name = _customPlayerController.text.trim();
     if (name.isEmpty) return;
     _customPlayerController.clear();
-    await LeagueService().addParticipantToLeague(widget.league.id, name);
+    await _service.addParticipantToLeague(widget.league.id, name);
     if (!mounted) return;
     setState(() {});
   }
@@ -103,6 +109,7 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
           team1Members: [_team1Player1!, _team1Player2!],
           team2Members: [_team2Player1!, _team2Player2!],
           ownsGameState: true,
+          leagueService: _service,
         ),
       ),
     );

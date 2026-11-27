@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:domino_score/screens/league/global_ranking_screen.dart';
 import 'package:domino_score/screens/league/league_home_screen.dart';
 import 'package:domino_score/screens/league/league_manager_screen.dart';
+import 'package:domino_score/services/leaderboard_service.dart';
 import 'package:domino_score/services/league_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,9 +18,12 @@ http.Response _json(Object body, {int status = 200}) =>
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  late LeagueService service;
+
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
-    await LeagueService().resetForTesting();
+    service = LeagueService.isolated();
+    await service.ensureLoaded();
   });
 
   testWidgets(
@@ -30,7 +34,9 @@ void main() {
     });
 
     await http.runWithClient(() async {
-      await tester.pumpWidget(const MaterialApp(home: LeagueManagerScreen()));
+      await tester.pumpWidget(
+        MaterialApp(home: LeagueManagerScreen(leagueService: service)),
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(
@@ -88,8 +94,18 @@ void main() {
       return _json({'success': false}, status: 404);
     });
 
+    final leaderboardService = LeaderboardService.isolated();
+    await leaderboardService.ensureLoaded();
+
     await http.runWithClient(() async {
-      await tester.pumpWidget(const MaterialApp(home: GlobalRankingScreen()));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: GlobalRankingScreen(
+            leagueService: service,
+            leaderboardService: leaderboardService,
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Ana & Luis'), findsOneWidget);
@@ -141,7 +157,8 @@ void main() {
       'domino_leagues_registry_v1': jsonEncode(seededLeague),
       'domino_active_league_id_v1': 'LIG-OVF1',
     });
-    await LeagueService().resetForTesting();
+    final seededService = LeagueService.isolated();
+    await seededService.ensureLoaded();
 
     final client = MockClient((request) async {
       if (request.url.path == '/health') {
@@ -154,7 +171,9 @@ void main() {
     });
 
     await http.runWithClient(() async {
-      await tester.pumpWidget(const MaterialApp(home: LeagueHomeScreen()));
+      await tester.pumpWidget(
+        MaterialApp(home: LeagueHomeScreen(leagueService: seededService)),
+      );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 

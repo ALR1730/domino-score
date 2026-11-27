@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import '../models/game_state.dart';
 import '../screens/leaderboard_screen.dart';
+import '../services/leaderboard_service.dart';
+import '../services/league_service.dart';
 import '../theme/app_colors.dart';
 
 class WinnerDialog extends StatelessWidget {
   final GameState gameState;
+  final LeagueService? leagueService;
+  final LeaderboardService? leaderboardService;
 
   const WinnerDialog({
     super.key,
     required this.gameState,
+    this.leagueService,
+    this.leaderboardService,
   });
 
   @override
@@ -247,7 +253,11 @@ class WinnerDialog extends StatelessWidget {
                       Navigator.of(context).pop();
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                            builder: (ctx) => const LeaderboardScreen()),
+                          builder: (ctx) => LeaderboardScreen(
+                            leagueService: leagueService,
+                            leaderboardService: leaderboardService,
+                          ),
+                        ),
                       );
                     },
                     icon: const Icon(Icons.emoji_events,
